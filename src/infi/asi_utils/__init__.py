@@ -1,5 +1,3 @@
-__import__("pkg_resources").declare_namespace(__name__)
-
 """asi-utils, a partial cross-platform, pure-python implementation of sg3-utils
 
 Usage:
@@ -31,11 +29,6 @@ import docopt
 from infi.pyutils.contexts import contextmanager
 
 
-MS = 1000
-SG_TIMEOUT_IN_SEC = 3
-SG_TIMEOUT_IN_MS = SG_TIMEOUT_IN_SEC * MS
-
-
 class OutputContext(object):
     def __init__(self):
         super(OutputContext, self).__init__()
@@ -52,18 +45,26 @@ class OutputContext(object):
     def enable_hex(self):
         self._hex = True
 
-    def output_command(self, command):
-        if self._verbose:
-            print command
-
-    def output_result(self, result):
+    def _print_item(self, item):
+        from infi.instruct import Struct
+        from infi.instruct.buffer import Buffer
+        data = type(item).write_to_string(item) if isinstance(item, Struct) else item.pack()
+        pretty = repr(item) if isinstance(item, Struct) else item
         if self._hex or self._raw:
             if self._raw:
-                print str(result.pack())
+                print str(data)
             if self._hex:
-                print repr(str(result.pack()))
+                print repr(str(data))
         else:
-            print result
+            print pretty
+
+    def output_command(self, command):
+        if not self._verbose:
+            return
+        self._print_item(command)
+
+    def output_result(self, result):
+        self._print_item(result)
 
 
 ActiveOutputContext = OutputContext()
@@ -96,9 +97,9 @@ def sync_wait(asi, command):
 def turs(device, number):
     from infi.asi.cdb.inquiry.standard import StandardInquiryCommand
     with asi_context(device) as asi:
-        for i in xrange(number):
+        for i in xrange(int(number)):
             command = StandardInquiryCommand()
-            sync_wait(asi_context, command)
+            sync_wait(asi, command)
 
 
 def inq(device, page):

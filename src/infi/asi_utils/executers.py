@@ -1,6 +1,11 @@
 from infi.pyutils.contexts import contextmanager
 
 
+MS = 1000
+SG_TIMEOUT_IN_SEC = 3
+SG_TIMEOUT_IN_MS = SG_TIMEOUT_IN_SEC * MS
+
+
 @contextmanager
 def windows(device):
     from infi.asi.win32 import OSFile
