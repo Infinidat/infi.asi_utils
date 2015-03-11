@@ -146,7 +146,17 @@ def logs(device, page):
 
 
 def reset(device, target_reset, host_reset, lun_reset):
-    raise NotImplementedError()
+    from infi.os_info import get_platform_string
+    if get_platform_string().startswith('linux'):
+        from infi.sgutils import sg_reset
+        if target_reset:
+            sg_reset.target_reset(device)
+        elif host_reset:
+            sg_reset.host_reset(device)
+        elif lun_reset:
+            sg_reset.lun_reset(device)
+    else:
+        raise NotImplementedError()
 
 
 def main(argv=sys.argv[1:]):
