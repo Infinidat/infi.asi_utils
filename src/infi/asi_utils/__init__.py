@@ -10,18 +10,19 @@ Usage:
     asi-utils reset   [options] <device> [--target | --host | --device]
 
 Options:
-    --number=NUM    number of test_unit_ready commands [default: 1]
-    --page=PG       page number or abbreviation
-    --select=SR     select report SR [default: 0]
-    --long          use READ CAPACITY (16) cdb
-    --request=RLEN  Request up to RLEN bytes of data (data-in)
-    --outfile=OFILE Write binary data to OFILE
-    --target        target reset
-    --host          host (bus adapter: HBA) reset
-    --device        device (logical unit) reset
-    --raw           output response in binary
-    --hex           output response in hexadecimal
-    --verbose       increase verbosity
+    -n NUM, --number=NUM        number of test_unit_ready commands [default: 1]
+    -p PG,  --page=PG           page number or abbreviation
+    -s SR,  --select=SR         select report SR [default: 0]
+    -l,     --long              use READ CAPACITY (16) cdb
+    --request=RLEN              request up to RLEN bytes of data (data-in)
+    --outfile=OFILE             write binary data to OFILE
+    --target                    target reset
+    --host                      host (bus adapter: HBA) reset
+    --device                    device (logical unit) reset
+    -r, --raw                   output response in binary
+    -h, --hex                   output response in hexadecimal
+    -v, --verbose               increase verbosity
+    -V, --version               print version string and exit
 """
 
 import sys
