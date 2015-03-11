@@ -45,6 +45,9 @@ class OutputContext(object):
     def enable_hex(self):
         self._hex = True
 
+    def _print(self, string):
+        print string
+
     def _print_item(self, item):
         from infi.instruct import Struct
         from infi.instruct.buffer import Buffer
@@ -52,11 +55,11 @@ class OutputContext(object):
         pretty = repr(item) if isinstance(item, Struct) else item
         if self._hex or self._raw:
             if self._raw:
-                print str(data)
+                self._print(str(data))
             if self._hex:
-                print repr(str(data))
+                self._print(repr(str(data)))
         else:
-            print pretty
+            self._print(pretty)
 
     def output_command(self, command):
         if not self._verbose:
