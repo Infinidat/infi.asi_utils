@@ -108,6 +108,7 @@ def sync_wait(asi, command):
     ActiveOutputContext.output_command(command)
     result = _sync_wait(command.execute(asi))
     ActiveOutputContext.output_result(result)
+    return result
 
 
 def turs(device, number):
@@ -169,7 +170,10 @@ def raw(device, cdb, request_length, output_file):
 
     cdb_raw = restore(' '.join(cdb) if isinstance(cdb, list) else cdb)
     with asi_context(device) as asi:
-        sync_wait(asi, CDB())
+        result = sync_wait(asi, CDB())
+        if output_file:
+            with open(output_file, 'w') as fd:
+                fd.write(result)
 
 
 def logs(device, page):
