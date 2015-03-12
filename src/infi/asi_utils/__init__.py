@@ -122,7 +122,7 @@ def turs(device, number):
 def inq(device, page):
     from infi.asi.cdb.inquiry import standard, vpd_pages
     if page is None:
-        command = standard.StandardInquiryCommand()
+        command = standard.StandardInquiryCommand(allocation_length=219)
     elif page.isdigit():
         command = vpd_pages.get_vpd_page(int(page))()
     elif page.startswith('0x'):
