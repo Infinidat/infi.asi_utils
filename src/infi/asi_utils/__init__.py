@@ -14,7 +14,7 @@ Options:
     -p PG, --page=PG            page number or abbreviation
     -s SR, --select=SR          select report SR [default: 0]
     -l, --long                  use READ CAPACITY (16) cdb
-    -r RLEN, --request=RLEN     request up to RLEN bytes of data (data-in)
+    --request=RLEN              request up to RLEN bytes of data (data-in)
     --outfile=OFILE             write binary data to OFILE
     --target                    target reset
     --host                      host (bus adapter: HBA) reset
