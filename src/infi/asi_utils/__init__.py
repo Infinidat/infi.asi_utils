@@ -49,16 +49,24 @@ class OutputContext(object):
     def _print(self, string):
         print string
 
+    def _to_raw(self, data):
+        return str(data)
+
+    def _to_hex(self, data):
+        from hexdump import hexdump
+        return hexdump(data)
+
     def _print_item(self, item):
         from infi.instruct import Struct
         from infi.instruct.buffer import Buffer
+        from infi.asi.cdb import CDB, CDBBuffer
         data = type(item).write_to_string(item) if isinstance(item, Struct) else item.pack()
         pretty = repr(item) if isinstance(item, Struct) else item
         if self._hex or self._raw:
             if self._raw:
-                self._print(str(data))
+                self._print(self._to_raw(data))
             if self._hex:
-                self._print(repr(str(data)))
+                self._print(self._to_hex(data))
         else:
             self._print(pretty)
 
