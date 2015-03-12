@@ -11,9 +11,9 @@ Usage:
 
 Options:
     -n NUM, --number=NUM        number of test_unit_ready commands [default: 1]
-    -p PG,  --page=PG           page number or abbreviation
-    -s SR,  --select=SR         select report SR [default: 0]
-    -l,     --long              use READ CAPACITY (16) cdb
+    -p PG, --page=PG            page number or abbreviation
+    -s SR, --select=SR          select report SR [default: 0]
+    -l, --long                  use READ CAPACITY (16) cdb
     --request=RLEN              request up to RLEN bytes of data (data-in)
     --outfile=OFILE             write binary data to OFILE
     --target                    target reset
