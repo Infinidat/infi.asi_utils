@@ -206,7 +206,7 @@ def reset(device, target_reset, host_reset, lun_reset):
 
 
 def main(argv=sys.argv[1:]):
-    from infi.asi.__version__ import __version__
+    from infi.asi_utils.__version__ import __version__
     arguments = docopt.docopt(__doc__, version=__version__)
 
     if arguments['--hex']:
