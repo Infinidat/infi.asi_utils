@@ -112,10 +112,10 @@ def sync_wait(asi, command):
 
 
 def turs(device, number):
-    from infi.asi.cdb.inquiry.standard import StandardInquiryCommand
+    from infi.asi.cdb.tur import TestUnitReadyCommand
     with asi_context(device) as asi:
         for i in xrange(int(number)):
-            command = StandardInquiryCommand()
+            command = TestUnitReadyCommand()
             sync_wait(asi, command)
 
 
