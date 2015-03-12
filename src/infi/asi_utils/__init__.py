@@ -177,7 +177,18 @@ def raw(device, cdb, request_length, output_file):
 
 
 def logs(device, page):
-    raise NotImplementedError()
+    from infi.asi.cdb.log_sense import LogSenseCommand
+    if page is None:
+        page = 0
+    elif page.isdigit():
+        page = int(page)
+    elif page.startswith('0x'):
+        page = int(page, 16)
+    else:
+        raise ValueError("invalid vpd page: %s" % page)
+    command = LogSenseCommand(page_code=page)
+    with asi_context(device) as asi:
+        sync_wait(asi, command)
 
 
 def reset(device, target_reset, host_reset, lun_reset):
