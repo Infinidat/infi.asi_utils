@@ -54,14 +54,18 @@ class OutputContext(object):
 
     def _to_hex(self, data):
         from hexdump import hexdump
-        return hexdump(data)
+        return hexdump(data, result='return')
 
     def _print_item(self, item):
         from infi.instruct import Struct
         from infi.instruct.buffer import Buffer
         from infi.asi.cdb import CDB, CDBBuffer
-        data = type(item).write_to_string(item) if isinstance(item, Struct) else item.pack()
-        pretty = repr(item) if isinstance(item, Struct) else item
+        data = str(type(item).write_to_string(item)) if isinstance(item, Struct) else \
+               str(item.pack()) if isinstance(item, Buffer) else \
+               '' if item is None else str(item)
+        pretty = repr(item) if isinstance(item, Struct) else \
+                  str(item) if isinstance(item, Buffer) else \
+                  '' if item is None else str(item)
         if self._hex or self._raw:
             if self._raw:
                 self._print(self._to_raw(data))
@@ -146,7 +150,26 @@ def readcap(device, read_16):
 
 
 def raw(device, cdb, request_length, output_file):
-    raise NotImplementedError()
+    from infi.asi.cdb import CDBBuffer
+    from infi.asi import SCSIReadCommand
+    from hexdump import restore
+
+    class CDB(object):
+        def create_datagram(self):
+            return cdb_raw
+
+        def execute(self, executer):
+            datagram = self.create_datagram()
+            allocation_length = int(request_length) if request_length else 0
+            result_datagram = yield executer.call(SCSIReadCommand(datagram, allocation_length))
+            yield result_datagram
+
+        def __str__(self):
+            return cdb_raw
+
+    cdb_raw = restore(' '.join(cdb) if isinstance(cdb, list) else cdb)
+    with asi_context(device) as asi:
+        sync_wait(asi, CDB())
 
 
 def logs(device, page):
