@@ -11,9 +11,9 @@ Usage:
 
 Options:
     -n NUM, --number=NUM        number of test_unit_ready commands [default: 1]
-    -p PG,  --page=PG           page number or abbreviation
-    -s SR,  --select=SR         select report SR [default: 0]
-    -l,     --long              use READ CAPACITY (16) cdb
+    -p PG, --page=PG            page number or abbreviation
+    -s SR, --select=SR          select report SR [default: 0]
+    -l, --long                  use READ CAPACITY (16) cdb
     --request=RLEN              request up to RLEN bytes of data (data-in)
     --outfile=OFILE             write binary data to OFILE
     --target                    target reset
@@ -94,7 +94,7 @@ def asi_context(device):
     if platform.startswith('windows'):
         _func = executers.windows
     elif platform.startswith('linux'):
-        _func = executers.linux_dm if 'dm-' in device else executers.linux_sg
+        _func = executers.linux_sg if device.startswith('/dev/sg') else executers.linux_dm
     elif platform.startswith('solaris'):
         raise NotImplementedError()
     else:
@@ -108,6 +108,7 @@ def sync_wait(asi, command):
     ActiveOutputContext.output_command(command)
     result = _sync_wait(command.execute(asi))
     ActiveOutputContext.output_result(result)
+    return result
 
 
 def turs(device, number):
@@ -169,11 +170,25 @@ def raw(device, cdb, request_length, output_file):
 
     cdb_raw = restore(' '.join(cdb) if isinstance(cdb, list) else cdb)
     with asi_context(device) as asi:
-        sync_wait(asi, CDB())
+        result = sync_wait(asi, CDB())
+        if output_file:
+            with open(output_file, 'w') as fd:
+                fd.write(result)
 
 
 def logs(device, page):
-    raise NotImplementedError()
+    from infi.asi.cdb.log_sense import LogSenseCommand
+    if page is None:
+        page = 0
+    elif page.isdigit():
+        page = int(page)
+    elif page.startswith('0x'):
+        page = int(page, 16)
+    else:
+        raise ValueError("invalid vpd page: %s" % page)
+    command = LogSenseCommand(page_code=page)
+    with asi_context(device) as asi:
+        sync_wait(asi, command)
 
 
 def reset(device, target_reset, host_reset, lun_reset):
