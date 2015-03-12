@@ -94,7 +94,7 @@ def asi_context(device):
     if platform.startswith('windows'):
         _func = executers.windows
     elif platform.startswith('linux'):
-        _func = executers.linux_dm if 'dm-' in device else executers.linux_sg
+        _func = executers.linux_sg if device.startswith('/dev/sg') else executers.linux_dm
     elif platform.startswith('solaris'):
         raise NotImplementedError()
     else:
