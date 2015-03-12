@@ -124,9 +124,9 @@ def inq(device, page):
     if page is None:
         command = standard.StandardInquiryCommand()
     elif page.isdigit():
-        command = vpd_pages.get_vpd_page(int(page))
+        command = vpd_pages.get_vpd_page(int(page))()
     elif page.startswith('0x'):
-        command = vpd_pages.get_vpd_page(int(page, 16))
+        command = vpd_pages.get_vpd_page(int(page, 16))()
     else:
         raise ValueError("invalid vpd page: %s" % page)
     if command is None:
