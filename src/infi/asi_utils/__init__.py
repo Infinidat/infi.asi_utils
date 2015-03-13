@@ -28,6 +28,18 @@ Options:
 import sys
 import docopt
 from infi.pyutils.contexts import contextmanager
+from infi.pyutils.decorators import wraps
+
+
+def exception_handler(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except (ValueError, NotImplementedError), error:
+            print error
+            raise SystemExit(1)
+    return wrapper
 
 
 class OutputContext(object):
@@ -96,9 +108,9 @@ def asi_context(device):
     elif platform.startswith('linux'):
         _func = executers.linux_sg if device.startswith('/dev/sg') else executers.linux_dm
     elif platform.startswith('solaris'):
-        raise NotImplementedError()
+        raise NotImplementedError("this platform is not supported")
     else:
-        raise NotImplementedError()
+        raise NotImplementedError("this platform is not supported")
     with _func(device) as executer:
         yield executer
 
@@ -202,9 +214,10 @@ def reset(device, target_reset, host_reset, lun_reset):
         elif lun_reset:
             sg_reset.lun_reset(device)
     else:
-        raise NotImplementedError()
+        raise NotImplementedError("task management commands not supported on this platform")
 
 
+@exception_handler
 def main(argv=sys.argv[1:]):
     from infi.asi_utils.__version__ import __version__
     arguments = docopt.docopt(__doc__, version=__version__)
@@ -232,3 +245,4 @@ def main(argv=sys.argv[1:]):
     elif arguments['reset']:
         reset(arguments['<device>'], target_reset=arguments['--target'],
               host_reset=arguments['--host'], lun_reset=arguments['--device'])
+
