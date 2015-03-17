@@ -166,23 +166,34 @@ def readcap(device, read_16):
 
 def raw(device, cdb, request_length, output_file, send_length, input_file):
     from infi.asi.cdb import CDBBuffer
-    from infi.asi import SCSIReadCommand
+    from infi.asi import SCSIReadCommand, SCSIWriteCommand
     from hexdump import restore
 
     class CDB(object):
         def create_datagram(self):
-            return cdb_raw + data
+            return cdb_raw
 
         def execute(self, executer):
             datagram = self.create_datagram()
-            allocation_length = int(request_length) if request_length else 0
-            result_datagram = yield executer.call(SCSIReadCommand(datagram, allocation_length))
+            if send_length:
+                request_length = yield executer.call(SCSIWriteCommand(datagram, data))
+            else:
+                result_datagram = yield executer.call(SCSIReadCommand(datagram, request_length))
             yield result_datagram
 
         def __str__(self):
             return cdb_raw
 
     cdb_raw = restore(' '.join(cdb) if isinstance(cdb, list) else cdb)
+
+    if request_length is None:
+        request_length = 0
+    elif request_length.isdigit():
+        request_length = int(request_length)
+    elif request_length.startswith('0x'):
+        request_length = int(request_length, 16)
+    else:
+        raise ValueError("invalid request length: %s" % request_length)
 
     if send_length is None:
         send_length = 0
