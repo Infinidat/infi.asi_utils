@@ -5,7 +5,7 @@ Usage:
     asi-utils inq     [options] <device> [--page=PG]
     asi-utils luns    [options] <device> [--select=SR]
     asi-utils readcap [options] <device> [--long]
-    asi-utils raw     [options] <device> <cdb>... [--request=RLEN] [--outfile=OFILE]
+    asi-utils raw     [options] <device> <cdb>... [--request=RLEN] [--outfile=OFILE] [--infile=IFILE] [--send=SLEN]
     asi-utils logs    [options] <device> [--page=PG]
     asi-utils reset   [options] <device> [--target | --host | --device]
 
@@ -16,6 +16,8 @@ Options:
     -l, --long                  use READ CAPACITY (16) cdb
     --request=RLEN              request up to RLEN bytes of data (data-in)
     --outfile=OFILE             write binary data to OFILE
+    --infile=IFILE              read data to send from IFILE [default: <stdin>]
+    --send=SLEN                 send SLEN bytes of data (data-out)
     --target                    target reset
     --host                      host (bus adapter: HBA) reset
     --device                    device (logical unit) reset
@@ -162,14 +164,14 @@ def readcap(device, read_16):
         sync_wait(asi, command)
 
 
-def raw(device, cdb, request_length, output_file):
+def raw(device, cdb, request_length, output_file, send_length, input_file):
     from infi.asi.cdb import CDBBuffer
     from infi.asi import SCSIReadCommand
     from hexdump import restore
 
     class CDB(object):
         def create_datagram(self):
-            return cdb_raw
+            return cdb_raw + data
 
         def execute(self, executer):
             datagram = self.create_datagram()
@@ -181,6 +183,26 @@ def raw(device, cdb, request_length, output_file):
             return cdb_raw
 
     cdb_raw = restore(' '.join(cdb) if isinstance(cdb, list) else cdb)
+
+    if send_length is None:
+        send_length = 0
+    elif send_length.isdigit():
+        send_length = int(send_length)
+    elif send_length.startswith('0x'):
+        send_length = int(send_length, 16)
+    else:
+        raise ValueError("invalid send length: %s" % send_length)
+
+    data = ''
+    if send_length:
+        if input_file == '<stdin>':
+            data = sys.stdin.read(send_length)
+        else:
+            with open(input_file) as fd:
+                data = fd.read(send_length)
+    assert len(data) == send_length
+
+
     with asi_context(device) as asi:
         result = sync_wait(asi, CDB())
         if output_file:
@@ -239,7 +261,8 @@ def main(argv=sys.argv[1:]):
         readcap(arguments['<device>'], read_16=arguments['--long'])
     elif arguments['raw']:
         raw(arguments['<device>'], cdb=arguments['<cdb>'],
-            request_length=arguments['--request'], output_file=arguments['--outfile'])
+            request_length=arguments['--request'], output_file=arguments['--outfile'],
+            send_length=arguments['--send'], input_file=arguments['--infile'])
     elif arguments['logs']:
         logs(arguments['<device>'], page=arguments['--page'])
     elif arguments['reset']:
