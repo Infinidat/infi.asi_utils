@@ -179,7 +179,7 @@ def raw(device, cdb, request_length, output_file, send_length, input_file):
         def execute(self, executer):
             datagram = self.create_datagram()
             if send_length:
-                request_length = yield executer.call(SCSIWriteCommand(datagram, data))
+                result_datagram = yield executer.call(SCSIWriteCommand(datagram, data))
             else:
                 result_datagram = yield executer.call(SCSIReadCommand(datagram, request_length))
             yield result_datagram
