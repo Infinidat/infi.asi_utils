@@ -34,11 +34,19 @@ from infi.pyutils.decorators import wraps
 
 
 def exception_handler(func):
+    from infi.asi.errors import AsiCheckConditionError
+    from infi.asi.errors import AsiOSError, AsiSCSIError
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
+        except AsiCheckConditionError, error:
+            ActiveOutputContext.output_result(error.sense_obj)
         except (ValueError, NotImplementedError), error:
+            print error
+            raise SystemExit(1)
+        except (AsiOSError, AsiSCSIError), error:
             print error
             raise SystemExit(1)
     return wrapper
