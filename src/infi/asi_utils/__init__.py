@@ -108,6 +108,9 @@ def asi_context(device):
     if platform.startswith('windows'):
         _func = executers.windows
     elif platform.startswith('linux'):
+        if device.startswith('/dev/sd'):
+            from infi.sgutils.sg_map import get_sg_from_sd
+            device = get_sg_from_sd(device)
         _func = executers.linux_sg if device.startswith('/dev/sg') else executers.linux_dm
     elif platform.startswith('solaris'):
         raise NotImplementedError("this platform is not supported")
