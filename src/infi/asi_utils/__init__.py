@@ -136,11 +136,12 @@ def asi_context(device):
         yield executer
 
 
-def sync_wait(asi, command):
+def sync_wait(asi, command, supresss_output=False):
     from infi.asi.coroutines.sync_adapter import sync_wait as _sync_wait
     ActiveOutputContext.output_command(command)
     result = _sync_wait(command.execute(asi))
-    ActiveOutputContext.output_result(result)
+    if not supresss_output:
+        ActiveOutputContext.output_result(result)
     return result
 
 
@@ -234,7 +235,7 @@ def raw(device, cdb, request_length, output_file, send_length, input_file):
 
 
     with asi_context(device) as asi:
-        result = sync_wait(asi, CDB())
+        result = sync_wait(asi, CDB(), supresss_output=True)
         if output_file:
             with open(output_file, 'w') as fd:
                 fd.write(result)
