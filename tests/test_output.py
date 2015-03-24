@@ -62,3 +62,8 @@ def test_hex__buffer():
     output._print_item(_buffer)
     assert output.stdout.getvalue() == '00000000: 00                                                .'
 
+
+def test_hexlify_block_addresses():
+    before = "ReportReadCapacityData10(last_logical_block_address=125829119, block_length_in_bytes=512)"
+    after = "ReportReadCapacityData10(last_logical_block_address=0x77fffff, block_length_in_bytes=512)"
+    assert after == infi.asi_utils.hexlify_block_addresses(before)

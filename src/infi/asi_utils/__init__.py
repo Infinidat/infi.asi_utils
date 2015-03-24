@@ -53,6 +53,13 @@ def exception_handler(func):
     return wrapper
 
 
+def hexlify_block_addresses(string):
+    from re import sub, MULTILINE
+    def hexlify(matchobj):
+        return "block_address=0x%x" % int(matchobj.group(1))
+    return sub(r"block_address=(\d+)", hexlify, string, flags=MULTILINE)
+
+
 class OutputContext(object):
     def __init__(self):
         super(OutputContext, self).__init__()
@@ -70,7 +77,7 @@ class OutputContext(object):
         self._hex = True
 
     def _print(self, string, file=sys.stdout):
-        print(string, file=file)
+        print(hexlify_block_addresses(string), file=file)
 
     def _to_raw(self, data):
         return str(data)
