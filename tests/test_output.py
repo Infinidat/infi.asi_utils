@@ -1,6 +1,7 @@
 import unittest
 import infi.asi_utils
 import StringIO
+import sys
 from infi.instruct import Struct, UBInt8
 from infi.instruct.buffer import Buffer, uint_field, bytes_ref
 
@@ -10,7 +11,7 @@ class FakeOutput(infi.asi_utils.OutputContext):
         super(FakeOutput, self).__init__()
         self.stdout = StringIO.StringIO()
 
-    def _print(self, string):
+    def _print(self, string, file=sys.stdout):
         self.stdout.write(string)
         self.stdout.flush()
 
@@ -52,12 +53,12 @@ def test_hex__struct():
     output = FakeOutput()
     output.enable_hex()
     output._print_item(_struct)
-    assert output.stdout.getvalue() == "'\\x00'"
+    assert output.stdout.getvalue() == '00000000: 00                                                .'
 
 
 def test_hex__buffer():
     output = FakeOutput()
     output.enable_hex()
     output._print_item(_buffer)
-    assert output.stdout.getvalue() == "'\\x00'"
+    assert output.stdout.getvalue() == '00000000: 00                                                .'
 

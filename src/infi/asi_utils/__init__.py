@@ -27,6 +27,7 @@ Options:
     -V, --version               print version string and exit
 """
 
+from __future__ import print_function
 import sys
 import docopt
 from infi.pyutils.contexts import contextmanager
@@ -42,12 +43,12 @@ def exception_handler(func):
         try:
             return func(*args, **kwargs)
         except AsiCheckConditionError, error:
-            ActiveOutputContext.output_result(error.sense_obj)
+            ActiveOutputContext.output_result(error.sense_obj, file=sys.stderr)
         except (ValueError, NotImplementedError), error:
-            print error
+            print(error, file=sys.stderr)
             raise SystemExit(1)
         except (AsiOSError, AsiSCSIError), error:
-            print error
+            print(error, file=sys.stderr)
             raise SystemExit(1)
     return wrapper
 
@@ -68,8 +69,8 @@ class OutputContext(object):
     def enable_hex(self):
         self._hex = True
 
-    def _print(self, string):
-        print string
+    def _print(self, string, file=sys.stdout):
+        print(string, file=file)
 
     def _to_raw(self, data):
         return str(data)
@@ -78,7 +79,7 @@ class OutputContext(object):
         from hexdump import hexdump
         return hexdump(data, result='return')
 
-    def _print_item(self, item):
+    def _print_item(self, item, file=sys.stdout):
         from infi.instruct import Struct
         from infi.instruct.buffer import Buffer
         from infi.asi.cdb import CDB, CDBBuffer
@@ -90,19 +91,19 @@ class OutputContext(object):
                   '' if item is None else str(item)
         if self._hex or self._raw:
             if self._raw:
-                self._print(self._to_raw(data))
+                self._print(self._to_raw(data), file=file)
             if self._hex:
-                self._print(self._to_hex(data))
+                self._print(self._to_hex(data), file=file)
         else:
-            self._print(pretty)
+            self._print(pretty, file=file)
 
-    def output_command(self, command):
+    def output_command(self, command, file=sys.stdout):
         if not self._verbose:
             return
-        self._print_item(command)
+        self._print_item(command, file=file)
 
-    def output_result(self, result):
-        self._print_item(result)
+    def output_result(self, result, file=sys.stdout):
+        self._print_item(result, file=file)
 
 
 ActiveOutputContext = OutputContext()
