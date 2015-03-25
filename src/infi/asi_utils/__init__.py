@@ -60,12 +60,41 @@ def hexlify_block_addresses(string):
     return sub(r"block_address=(\d+)", hexlify, string, flags=MULTILINE)
 
 
+class DefaultOutputFormatter(object):
+
+    def format(self, data):
+        from json import dumps
+        return dumps(data, indent=4, sort_keys=True).replace('"', '').replace(',', '')
+
+
+class ReadcapOutputFormatter(object):
+
+    def format(self, data):
+        lines = [
+            'Read Capacity results:',
+            '   Last logical block address={lastblock} ({lastblock:#x}), Number of blocks={numblocks}',
+            '   Logical block length={length} bytes',
+            'Hence:',
+            '   Device size: {size} bytes, {size_mb:.1f} MiB, {size_gb:.2f} GB'
+        ]
+        params = dict(
+            lastblock=data['last_logical_block_address'],
+            numblocks=data['last_logical_block_address']+1,
+            length=data['block_length_in_bytes'],
+        )
+        params['size'] = params['numblocks'] * params['length']
+        params['size_mb'] = params['size'] / 1024.0 / 1024.0
+        params['size_gb'] = params['size'] / 1000.0 / 1000.0 / 1000.0
+        return '\n'.join(lines).format(**params)
+
+
 class OutputContext(object):
     def __init__(self):
         super(OutputContext, self).__init__()
         self._verbose = False
         self._raw = False
         self._hex = False
+        self._formatter = DefaultOutputFormatter()
 
     def enable_verbose(self):
         self._verbose = True
@@ -75,6 +104,9 @@ class OutputContext(object):
 
     def enable_hex(self):
         self._hex = True
+
+    def set_formatter(self, formatter):
+        self._formatter = formatter
 
     def _print(self, string, file=sys.stdout):
         print(hexlify_block_addresses(string), file=file)
@@ -109,9 +141,8 @@ class OutputContext(object):
         return item
 
     def _prettify(self, item):
-        from json import dumps
         data = self._to_dict(item)
-        return dumps(data, indent=4, sort_keys=True).replace('"', '').replace(',', '')
+        return self._formatter.format(data)
 
     def _print_item(self, item, file=sys.stdout):
         from infi.instruct import Struct
@@ -313,6 +344,7 @@ def main(argv=sys.argv[1:]):
     elif arguments['luns']:
         luns(arguments['<device>'], select_report=arguments['--select'])
     elif arguments['readcap']:
+        ActiveOutputContext.set_formatter(ReadcapOutputFormatter())
         readcap(arguments['<device>'], read_16=arguments['--long'])
     elif arguments['raw']:
         raw(arguments['<device>'], cdb=arguments['<cdb>'],
