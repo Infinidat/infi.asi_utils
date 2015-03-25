@@ -86,6 +86,16 @@ class OutputContext(object):
         from hexdump import hexdump
         return hexdump(data, result='return')
 
+    def _prettify_buffer(self, item):
+        # TODO in the general case jsonify and print with indent
+        # TODO in specific cases, implement the same output as sg3-utils
+        return str(item)
+
+    def _prettify_struct(self, item):
+        # TODO in the general case jsonify and print with indent
+        # TODO in specific cases, implement the same output as sg3-utils
+        return repr(item)
+
     def _print_item(self, item, file=sys.stdout):
         from infi.instruct import Struct
         from infi.instruct.buffer import Buffer
@@ -93,8 +103,8 @@ class OutputContext(object):
         data = str(type(item).write_to_string(item)) if isinstance(item, Struct) else \
                str(item.pack()) if isinstance(item, Buffer) else \
                '' if item is None else str(item)
-        pretty = repr(item) if isinstance(item, Struct) else \
-                  str(item) if isinstance(item, Buffer) else \
+        pretty = self._prettify_struct(item) if isinstance(item, Struct) else \
+                  self._prettify_buffer(item) if isinstance(item, Buffer) else \
                   '' if item is None else str(item)
         if self._hex or self._raw:
             if self._raw:
