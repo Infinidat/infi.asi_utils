@@ -45,7 +45,7 @@ def exception_handler(func):
         try:
             return func(*args, **kwargs)
         except AsiCheckConditionError, error:
-            ActiveOutputContext.output_result(error.sense_obj, file=sys.stderr)
+            ActiveOutputContext.output_error(error.sense_obj, file=sys.stderr)
         except (ValueError, NotImplementedError), error:
             print(error, file=sys.stderr)
             raise SystemExit(1)
@@ -85,6 +85,9 @@ class OutputContext(object):
 
     def output_result(self, result, file=sys.stdout):
         self._print(self._result_formatter.format(result), file=file)
+
+    def output_error(self, result, file=sys.stdout):
+        self._print(ErrorOutputFormatter().format(result), file=file)
 
 
 ActiveOutputContext = OutputContext()
@@ -247,6 +250,8 @@ def set_formatters(arguments):
     # Output formatters for specific commands
     if arguments['readcap']:
         ActiveOutputContext.set_result_formatter(ReadcapOutputFormatter())
+    elif arguments['luns']:
+        ActiveOutputContext.set_result_formatter(LunsOutputFormatter())
     # Hex/raw/json modes override
     if arguments['--hex']:
         ActiveOutputContext.set_formatters(HexOutputFormatter())

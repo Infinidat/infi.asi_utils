@@ -1,5 +1,6 @@
 from infi.instruct.struct import Struct, Field, FieldListContainer, AnonymousField
 from infi.instruct.buffer import Buffer
+from infi.asi.sense.asc import AdditionalSenseCode
 import binascii
 
 
@@ -24,26 +25,24 @@ class OutputFormatter(object):
             for field in fields:
                 ret[field.attr_name()] = self._to_dict(getattr(item, field.attr_name()))
             return ret
+
         if isinstance(item, Struct):
             ret = {}
             for field in item._container_.fields:
                 if hasattr(field, 'name'):
                     ret[field.name] = self._to_dict(field.get_value(item))
-                elif not isinstance(field, AnonymousField):
-                    ret.update(self._to_dict(field))
+                elif isinstance(field, FieldListContainer):
+                    for inner_field in field.fields:
+                        if not isinstance(inner_field, AnonymousField):
+                            ret[inner_field.name] = self._to_dict(inner_field.get_value(item))
             return ret
-        if isinstance(item, FieldListContainer):
-            ret = {}
-            for field in item.fields:
-                if hasattr(field, 'name'):
-                    ret[field.name] = self._to_dict(field.get_value(item))
-                elif not isinstance(field, AnonymousField):
-                    ret.update(self._to_dict(field.get_value(item)))
-            return ret
+
         if isinstance(item, bytearray):
             return '0x' + binascii.hexlify(item) if item else ''
+
         if isinstance(item, list):
             return [self._to_dict(x) for x in item]
+
         return item
 
 
@@ -71,6 +70,12 @@ class DefaultOutputFormatter(JsonOutputFormatter):
 
     def format(self, item):
         return super(DefaultOutputFormatter, self).format(item).replace('"', '').replace(',', '')
+
+
+class ErrorOutputFormatter(OutputFormatter):
+
+    def format(self, item):
+        return 'ERROR: %s (%s)' % (item.sense_key, item.additional_sense_code.code_name)
 
 
 class ReadcapOutputFormatter(OutputFormatter):
@@ -103,3 +108,11 @@ class ReadcapOutputFormatter(OutputFormatter):
         params['size_mb'] = params['size'] / 1024.0 / 1024.0
         params['size_gb'] = params['size'] / 1000.0 / 1000.0 / 1000.0
         return '\n'.join(lines).format(**params)
+
+
+class LunsOutputFormatter(OutputFormatter):
+
+    def format(self, item):
+        data = self._to_dict(item)
+        return '\n'.join([str(lun) for lun in data['lun_list']])
+
