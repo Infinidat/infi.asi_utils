@@ -23,6 +23,7 @@ Options:
     --device                    device (logical unit) reset
     -r, --raw                   output response in binary
     -h, --hex                   output response in hexadecimal
+    -j, --json                  output response in json
     -v, --verbose               increase verbosity
     -V, --version               print version string and exit
 """
@@ -32,6 +33,7 @@ import sys
 import docopt
 from infi.pyutils.contexts import contextmanager
 from infi.pyutils.decorators import wraps
+from formatters import *
 
 
 def exception_handler(func):
@@ -53,119 +55,36 @@ def exception_handler(func):
     return wrapper
 
 
-def hexlify_block_addresses(string):
-    from re import sub, MULTILINE
-    def hexlify(matchobj):
-        return "block_address=0x%x" % int(matchobj.group(1))
-    return sub(r"block_address=(\d+)", hexlify, string, flags=MULTILINE)
-
-
-class DefaultOutputFormatter(object):
-
-    def format(self, data):
-        from json import dumps
-        return dumps(data, indent=4, sort_keys=True).replace('"', '').replace(',', '')
-
-
-class ReadcapOutputFormatter(object):
-
-    def format(self, data):
-        lines = [
-            'Read Capacity results:',
-            '   Last logical block address={lastblock} ({lastblock:#x}), Number of blocks={numblocks}',
-            '   Logical block length={length} bytes',
-            'Hence:',
-            '   Device size: {size} bytes, {size_mb:.1f} MiB, {size_gb:.2f} GB'
-        ]
-        params = dict(
-            lastblock=data['last_logical_block_address'],
-            numblocks=data['last_logical_block_address']+1,
-            length=data['block_length_in_bytes'],
-        )
-        params['size'] = params['numblocks'] * params['length']
-        params['size_mb'] = params['size'] / 1024.0 / 1024.0
-        params['size_gb'] = params['size'] / 1000.0 / 1000.0 / 1000.0
-        return '\n'.join(lines).format(**params)
-
-
 class OutputContext(object):
     def __init__(self):
         super(OutputContext, self).__init__()
         self._verbose = False
-        self._raw = False
-        self._hex = False
-        self._formatter = DefaultOutputFormatter()
+        self._command_formatter = DefaultOutputFormatter()
+        self._result_formatter = DefaultOutputFormatter()
 
     def enable_verbose(self):
         self._verbose = True
 
-    def enable_raw(self):
-        self._raw = True
+    def set_command_formatter(self, formatter):
+        self._command_formatter = formatter
 
-    def enable_hex(self):
-        self._hex = True
+    def set_result_formatter(self, formatter):
+        self._result_formatter = formatter
 
-    def set_formatter(self, formatter):
-        self._formatter = formatter
+    def set_formatters(self, formatter):
+        self.set_command_formatter(formatter)
+        self.set_result_formatter(formatter)
 
     def _print(self, string, file=sys.stdout):
-        print(hexlify_block_addresses(string), file=file)
-
-    def _to_raw(self, data):
-        return str(data)
-
-    def _to_hex(self, data):
-        from hexdump import hexdump
-        return hexdump(data, result='return')
-
-    def _to_dict(self, item):
-        from infi.instruct import Struct
-        from infi.instruct.buffer import Buffer
-        import binascii
-        if isinstance(item, Buffer):
-            ret = {}
-            fields = item._all_fields()
-            for field in fields:
-                ret[field.attr_name()] = self._to_dict(getattr(item, field.attr_name()))
-            return ret
-        if isinstance(item, Struct):
-            ret = {}
-            for field in item._container_.fields:
-                if hasattr(field, 'name'):
-                    ret[field.name] = self._to_dict(field.get_value(item))
-            return ret
-        if isinstance(item, bytearray):
-            return '0x' + binascii.hexlify(item) if item else ''
-        if isinstance(item, list):
-            return [self._to_dict(x) for x in item]
-        return item
-
-    def _prettify(self, item):
-        data = self._to_dict(item)
-        return self._formatter.format(data)
-
-    def _print_item(self, item, file=sys.stdout):
-        from infi.instruct import Struct
-        from infi.instruct.buffer import Buffer
-        if self._hex or self._raw:
-            data = str(type(item).write_to_string(item)) if isinstance(item, Struct) else \
-                   str(item.pack()) if isinstance(item, Buffer) else \
-                   '' if item is None else str(item)
-            if self._raw:
-                self._print(self._to_raw(data), file=file)
-            if self._hex:
-                self._print(self._to_hex(data), file=file)
-        else:
-            pretty = self._prettify(item)
-            self._print(pretty, file=file)
+        print(string, file=file)
 
     def output_command(self, command, file=sys.stdout):
         if not self._verbose:
             return
-        self._print_item(command, file=file)
+        self._print(self._command_formatter.format(command), file=file)
 
     def output_result(self, result, file=sys.stdout):
-        self._print_item(result, file=file)
+        self._print(self._result_formatter.format(result), file=file)
 
 
 ActiveOutputContext = OutputContext()
@@ -324,18 +243,27 @@ def reset(device, target_reset, host_reset, lun_reset):
     else:
         raise NotImplementedError("task management commands not supported on this platform")
 
+def set_formatters(arguments):
+    # Output formatters for specific commands
+    if arguments['readcap']:
+        ActiveOutputContext.set_result_formatter(ReadcapOutputFormatter())
+    # Hex/raw/json modes override
+    if arguments['--hex']:
+        ActiveOutputContext.set_formatters(HexOutputFormatter())
+    elif arguments['--raw']:
+        ActiveOutputContext.set_formatters(RawOutputFormatter())
+    elif arguments['--json']:
+        ActiveOutputContext.set_formatters(JsonOutputFormatter())
+
 
 @exception_handler
 def main(argv=sys.argv[1:]):
     from infi.asi_utils.__version__ import __version__
     arguments = docopt.docopt(__doc__, version=__version__)
 
-    if arguments['--hex']:
-        ActiveOutputContext.enable_hex()
     if arguments['--verbose']:
         ActiveOutputContext.enable_verbose()
-    if arguments['--raw']:
-        ActiveOutputContext.enable_raw()
+    set_formatters(arguments)
 
     if arguments['turs']:
         turs(arguments['<device>'], number=arguments['--number'])
@@ -344,7 +272,6 @@ def main(argv=sys.argv[1:]):
     elif arguments['luns']:
         luns(arguments['<device>'], select_report=arguments['--select'])
     elif arguments['readcap']:
-        ActiveOutputContext.set_formatter(ReadcapOutputFormatter())
         readcap(arguments['<device>'], read_16=arguments['--long'])
     elif arguments['raw']:
         raw(arguments['<device>'], cdb=arguments['<cdb>'],
