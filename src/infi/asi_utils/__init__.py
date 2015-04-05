@@ -107,6 +107,8 @@ def asi_context(device):
         _func = executers.linux_sg if device.startswith('/dev/sg') else executers.linux_dm
     elif platform.startswith('solaris'):
         _func = executers.solaris
+    elif platform.startswith('aix'):
+        _func = executers.aix
     else:
         raise NotImplementedError("this platform is not supported")
     with _func(device) as executer:

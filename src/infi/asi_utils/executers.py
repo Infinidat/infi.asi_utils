@@ -58,3 +58,17 @@ def solaris(device):
         yield executer
     finally:
         handle.close()
+
+
+@contextmanager
+def aix(device):
+    import os
+    from infi.asi.unix import OSFile
+    from infi.asi import create_platform_command_executer
+
+    handle = OSFile(os.open(device, os.O_RDWR))
+    executer = create_platform_command_executer(handle)
+    try:
+        yield executer
+    finally:
+        handle.close()
