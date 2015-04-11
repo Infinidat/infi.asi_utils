@@ -163,7 +163,7 @@ def readcap(device, read_16):
         sync_wait(asi, command)
 
 
-def raw(device, cdb, request_length, output_file, send_length, input_file):
+def build_raw_command(cdb, request_length, output_file, send_length, input_file):
     from infi.asi.cdb import CDBBuffer
     from infi.asi import SCSIReadCommand, SCSIWriteCommand
     from hexdump import restore
@@ -212,9 +212,13 @@ def raw(device, cdb, request_length, output_file, send_length, input_file):
                 data = fd.read(send_length)
     assert len(data) == send_length
 
+    return CDB()
 
+
+def raw(device, cdb, request_length, output_file, send_length, input_file):
+    command = build_raw_command(cdb, request_length, output_file, send_length, input_file)
     with asi_context(device) as asi:
-        result = sync_wait(asi, CDB(), supresss_output=True)
+        result = sync_wait(asi, command, supresss_output=True)
         if output_file:
             with open(output_file, 'w') as fd:
                 fd.write(result)
