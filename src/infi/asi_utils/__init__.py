@@ -5,7 +5,7 @@ Usage:
     asi-utils inq     [options] <device> [--page=PG]
     asi-utils luns    [options] <device> [--select=SR]
     asi-utils readcap [options] <device> [--long]
-    asi-utils raw     [options] <device> <cdb>... [--request=RLEN] [--outfile=OFILE]
+    asi-utils raw     [options] <device> <cdb>... [--request=RLEN] [--outfile=OFILE] [--infile=IFILE] [--send=SLEN]
     asi-utils logs    [options] <device> [--page=PG]
     asi-utils reset   [options] <device> [--target | --host | --device]
 
@@ -16,71 +16,78 @@ Options:
     -l, --long                  use READ CAPACITY (16) cdb
     --request=RLEN              request up to RLEN bytes of data (data-in)
     --outfile=OFILE             write binary data to OFILE
+    --infile=IFILE              read data to send from IFILE [default: <stdin>]
+    --send=SLEN                 send SLEN bytes of data (data-out)
     --target                    target reset
     --host                      host (bus adapter: HBA) reset
     --device                    device (logical unit) reset
     -r, --raw                   output response in binary
     -h, --hex                   output response in hexadecimal
+    -j, --json                  output response in json
     -v, --verbose               increase verbosity
     -V, --version               print version string and exit
 """
 
+from __future__ import print_function
 import sys
 import docopt
 from infi.pyutils.contexts import contextmanager
+from infi.pyutils.decorators import wraps
+from formatters import *
+
+
+def exception_handler(func):
+    from infi.asi.errors import AsiCheckConditionError
+    from infi.asi.errors import AsiOSError, AsiSCSIError
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except AsiCheckConditionError, error:
+            ActiveOutputContext.output_error(error.sense_obj, file=sys.stderr)
+        except (ValueError, NotImplementedError), error:
+            print(error, file=sys.stderr)
+            raise SystemExit(1)
+        except (AsiOSError, AsiSCSIError), error:
+            print(error, file=sys.stderr)
+            raise SystemExit(1)
+    return wrapper
 
 
 class OutputContext(object):
     def __init__(self):
         super(OutputContext, self).__init__()
         self._verbose = False
-        self._raw = False
-        self._hex = False
+        self._command_formatter = DefaultOutputFormatter()
+        self._result_formatter = DefaultOutputFormatter()
 
     def enable_verbose(self):
         self._verbose = True
 
-    def enable_raw(self):
-        self._raw = True
+    def set_command_formatter(self, formatter):
+        self._command_formatter = formatter
 
-    def enable_hex(self):
-        self._hex = True
+    def set_result_formatter(self, formatter):
+        self._result_formatter = formatter
 
-    def _print(self, string):
-        print string
+    def set_formatters(self, formatter):
+        self.set_command_formatter(formatter)
+        self.set_result_formatter(formatter)
 
-    def _to_raw(self, data):
-        return str(data)
+    def _print(self, string, file=sys.stdout):
+        print(string, file=file)
 
-    def _to_hex(self, data):
-        from hexdump import hexdump
-        return hexdump(data, result='return')
-
-    def _print_item(self, item):
-        from infi.instruct import Struct
-        from infi.instruct.buffer import Buffer
-        from infi.asi.cdb import CDB, CDBBuffer
-        data = str(type(item).write_to_string(item)) if isinstance(item, Struct) else \
-               str(item.pack()) if isinstance(item, Buffer) else \
-               '' if item is None else str(item)
-        pretty = repr(item) if isinstance(item, Struct) else \
-                  str(item) if isinstance(item, Buffer) else \
-                  '' if item is None else str(item)
-        if self._hex or self._raw:
-            if self._raw:
-                self._print(self._to_raw(data))
-            if self._hex:
-                self._print(self._to_hex(data))
-        else:
-            self._print(pretty)
-
-    def output_command(self, command):
+    def output_command(self, command, file=sys.stdout):
         if not self._verbose:
             return
-        self._print_item(command)
+        self._print(self._command_formatter.format(command), file=file)
 
-    def output_result(self, result):
-        self._print_item(result)
+    def output_result(self, result, file=sys.stdout):
+        self._print(self._result_formatter.format(result), file=file)
+
+    def output_error(self, result, file=sys.stdout):
+        self._print(ErrorOutputFormatter().format(result), file=file)
 
 
 ActiveOutputContext = OutputContext()
@@ -94,39 +101,45 @@ def asi_context(device):
     if platform.startswith('windows'):
         _func = executers.windows
     elif platform.startswith('linux'):
+        if device.startswith('/dev/sd'):
+            from infi.sgutils.sg_map import get_sg_from_sd
+            device = get_sg_from_sd(device)
         _func = executers.linux_sg if device.startswith('/dev/sg') else executers.linux_dm
     elif platform.startswith('solaris'):
-        raise NotImplementedError()
+        _func = executers.solaris
+    elif platform.startswith('aix'):
+        _func = executers.aix
     else:
-        raise NotImplementedError()
+        raise NotImplementedError("this platform is not supported")
     with _func(device) as executer:
         yield executer
 
 
-def sync_wait(asi, command):
+def sync_wait(asi, command, supresss_output=False):
     from infi.asi.coroutines.sync_adapter import sync_wait as _sync_wait
     ActiveOutputContext.output_command(command)
     result = _sync_wait(command.execute(asi))
-    ActiveOutputContext.output_result(result)
+    if not supresss_output:
+        ActiveOutputContext.output_result(result)
     return result
 
 
 def turs(device, number):
-    from infi.asi.cdb.inquiry.standard import StandardInquiryCommand
+    from infi.asi.cdb.tur import TestUnitReadyCommand
     with asi_context(device) as asi:
         for i in xrange(int(number)):
-            command = StandardInquiryCommand()
+            command = TestUnitReadyCommand()
             sync_wait(asi, command)
 
 
 def inq(device, page):
     from infi.asi.cdb.inquiry import standard, vpd_pages
     if page is None:
-        command = standard.StandardInquiryCommand()
+        command = standard.StandardInquiryCommand(allocation_length=219)
     elif page.isdigit():
-        command = vpd_pages.get_vpd_page(int(page))
+        command = vpd_pages.get_vpd_page(int(page))()
     elif page.startswith('0x'):
-        command = vpd_pages.get_vpd_page(int(page, 16))
+        command = vpd_pages.get_vpd_page(int(page, 16))()
     else:
         raise ValueError("invalid vpd page: %s" % page)
     if command is None:
@@ -150,9 +163,9 @@ def readcap(device, read_16):
         sync_wait(asi, command)
 
 
-def raw(device, cdb, request_length, output_file):
+def build_raw_command(cdb, request_length, output_file, send_length, input_file):
     from infi.asi.cdb import CDBBuffer
-    from infi.asi import SCSIReadCommand
+    from infi.asi import SCSIReadCommand, SCSIWriteCommand
     from hexdump import restore
 
     class CDB(object):
@@ -161,16 +174,51 @@ def raw(device, cdb, request_length, output_file):
 
         def execute(self, executer):
             datagram = self.create_datagram()
-            allocation_length = int(request_length) if request_length else 0
-            result_datagram = yield executer.call(SCSIReadCommand(datagram, allocation_length))
+            if send_length:
+                result_datagram = yield executer.call(SCSIWriteCommand(datagram, data))
+            else:
+                result_datagram = yield executer.call(SCSIReadCommand(datagram, request_length))
             yield result_datagram
 
         def __str__(self):
             return cdb_raw
 
     cdb_raw = restore(' '.join(cdb) if isinstance(cdb, list) else cdb)
+
+    if request_length is None:
+        request_length = 0
+    elif request_length.isdigit():
+        request_length = int(request_length)
+    elif request_length.startswith('0x'):
+        request_length = int(request_length, 16)
+    else:
+        raise ValueError("invalid request length: %s" % request_length)
+
+    if send_length is None:
+        send_length = 0
+    elif send_length.isdigit():
+        send_length = int(send_length)
+    elif send_length.startswith('0x'):
+        send_length = int(send_length, 16)
+    else:
+        raise ValueError("invalid send length: %s" % send_length)
+
+    data = ''
+    if send_length:
+        if input_file == '<stdin>':
+            data = sys.stdin.read(send_length)
+        else:
+            with open(input_file) as fd:
+                data = fd.read(send_length)
+    assert len(data) == send_length
+
+    return CDB()
+
+
+def raw(device, cdb, request_length, output_file, send_length, input_file):
+    command = build_raw_command(cdb, request_length, output_file, send_length, input_file)
     with asi_context(device) as asi:
-        result = sync_wait(asi, CDB())
+        result = sync_wait(asi, command, supresss_output=True)
         if output_file:
             with open(output_file, 'w') as fd:
                 fd.write(result)
@@ -202,19 +250,31 @@ def reset(device, target_reset, host_reset, lun_reset):
         elif lun_reset:
             sg_reset.lun_reset(device)
     else:
-        raise NotImplementedError()
+        raise NotImplementedError("task management commands not supported on this platform")
+
+def set_formatters(arguments):
+    # Output formatters for specific commands
+    if arguments['readcap']:
+        ActiveOutputContext.set_result_formatter(ReadcapOutputFormatter())
+    elif arguments['luns']:
+        ActiveOutputContext.set_result_formatter(LunsOutputFormatter())
+    # Hex/raw/json modes override
+    if arguments['--hex']:
+        ActiveOutputContext.set_formatters(HexOutputFormatter())
+    elif arguments['--raw']:
+        ActiveOutputContext.set_formatters(RawOutputFormatter())
+    elif arguments['--json']:
+        ActiveOutputContext.set_formatters(JsonOutputFormatter())
 
 
+@exception_handler
 def main(argv=sys.argv[1:]):
-    from infi.asi.__version__ import __version__
+    from infi.asi_utils.__version__ import __version__
     arguments = docopt.docopt(__doc__, version=__version__)
 
-    if arguments['--hex']:
-        ActiveOutputContext.enable_hex()
     if arguments['--verbose']:
         ActiveOutputContext.enable_verbose()
-    if arguments['--raw']:
-        ActiveOutputContext.enable_raw()
+    set_formatters(arguments)
 
     if arguments['turs']:
         turs(arguments['<device>'], number=arguments['--number'])
@@ -226,9 +286,11 @@ def main(argv=sys.argv[1:]):
         readcap(arguments['<device>'], read_16=arguments['--long'])
     elif arguments['raw']:
         raw(arguments['<device>'], cdb=arguments['<cdb>'],
-            request_length=arguments['--request'], output_file=arguments['--outfile'])
+            request_length=arguments['--request'], output_file=arguments['--outfile'],
+            send_length=arguments['--send'], input_file=arguments['--infile'])
     elif arguments['logs']:
         logs(arguments['<device>'], page=arguments['--page'])
     elif arguments['reset']:
         reset(arguments['<device>'], target_reset=arguments['--target'],
               host_reset=arguments['--host'], lun_reset=arguments['--device'])
+
