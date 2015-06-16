@@ -268,6 +268,8 @@ def set_formatters(arguments):
         ActiveOutputContext.set_result_formatter(ReadcapOutputFormatter())
     elif arguments['luns']:
         ActiveOutputContext.set_result_formatter(LunsOutputFormatter())
+    elif arguments['rtpg']:
+        ActiveOutputContext.set_result_formatter(RtpgOutputFormatter())
     # Hex/raw/json modes override
     if arguments['--hex']:
         ActiveOutputContext.set_formatters(HexOutputFormatter())
