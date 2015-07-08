@@ -97,7 +97,7 @@ ActiveOutputContext = OutputContext()
 
 @contextmanager
 def asi_context(device):
-    from . import executers
+    from infi.asi import executers
     from infi.os_info import get_platform_string
     platform = get_platform_string()
     if platform.startswith('windows'):
