@@ -4,6 +4,7 @@ Usage:
     asi-utils turs    [options] <device> [--number=NUM]
     asi-utils inq     [options] <device> [--page=PG]
     asi-utils luns    [options] <device> [--select=SR]
+    asi-utils rtpg    [options] <device> [--extended]
     asi-utils readcap [options] <device> [--long]
     asi-utils raw     [options] <device> <cdb>... [--request=RLEN] [--outfile=OFILE] [--infile=IFILE] [--send=SLEN]
     asi-utils logs    [options] <device> [--page=PG]
@@ -13,6 +14,7 @@ Options:
     -n NUM, --number=NUM        number of test_unit_ready commands [default: 1]
     -p PG, --page=PG            page number or abbreviation
     -s SR, --select=SR          select report SR [default: 0]
+    --extended                  get rtpg extended response instead of length only
     -l, --long                  use READ CAPACITY (16) cdb
     --request=RLEN              request up to RLEN bytes of data (data-in)
     --outfile=OFILE             write binary data to OFILE
@@ -155,6 +157,14 @@ def luns(device, select_report):
         sync_wait(asi, command)
 
 
+def rtpg(device, extended):
+    from infi.asi.cdb.rtpg import RTPGCommand
+    data_format = 1 if extended else 0
+    command = RTPGCommand(parameter_data_format=data_format)
+    with asi_context(device) as asi:
+        sync_wait(asi, command)
+
+
 def readcap(device, read_16):
     from infi.asi.cdb.read_capacity import ReadCapacity10Command
     from infi.asi.cdb.read_capacity import ReadCapacity16Command
@@ -258,6 +268,8 @@ def set_formatters(arguments):
         ActiveOutputContext.set_result_formatter(ReadcapOutputFormatter())
     elif arguments['luns']:
         ActiveOutputContext.set_result_formatter(LunsOutputFormatter())
+    elif arguments['rtpg']:
+        ActiveOutputContext.set_result_formatter(RtpgOutputFormatter())
     # Hex/raw/json modes override
     if arguments['--hex']:
         ActiveOutputContext.set_formatters(HexOutputFormatter())
@@ -282,6 +294,8 @@ def main(argv=sys.argv[1:]):
         inq(arguments['<device>'], page=arguments['--page'])
     elif arguments['luns']:
         luns(arguments['<device>'], select_report=arguments['--select'])
+    elif arguments['rtpg']:
+        rtpg(arguments['<device>'], extended=arguments['--extended'])
     elif arguments['readcap']:
         readcap(arguments['<device>'], read_16=arguments['--long'])
     elif arguments['raw']:

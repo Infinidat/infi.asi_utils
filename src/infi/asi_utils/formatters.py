@@ -116,3 +116,11 @@ class LunsOutputFormatter(OutputFormatter):
         data = self._to_dict(item)
         return '\n'.join([str(lun) for lun in data['lun_list']])
 
+class RtpgOutputFormatter(DefaultOutputFormatter):
+
+    def _to_dict(self, item):
+        item = super(RtpgOutputFormatter, self)._to_dict(item)
+
+        if isinstance(item, int) and item > 2:
+            return hex(item)
+        return item
