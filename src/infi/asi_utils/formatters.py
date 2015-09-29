@@ -109,7 +109,22 @@ class ReadcapOutputFormatter(OutputFormatter):
         params['size_gb'] = params['size'] / 1000.0 / 1000.0 / 1000.0
         return '\n'.join(lines).format(**params)
 
+class ReadkeysOutputFormatter(OutputFormatter):
+    def format(self, item):
+        lines = ['Reservation keys:']
+        if item.key_list != None:
+            for key in item.key_list:
+                lines.append('Key: {0}' % hex(key))
+        return '\n'.join(lines)
 
+class ReadreservationOutputFormatter(OutputFormatter):
+    def format(self, item):
+        lines = [ \
+          'Generation: 0x%x' % item.pr_generation, \
+          'Reservation key: 0x%x' % item.reservation_key, \
+          'Scope: 0x%x' % item.scope]
+        return '\n'.join(lines)
+    
 class LunsOutputFormatter(OutputFormatter):
 
     def format(self, item):

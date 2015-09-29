@@ -1,14 +1,22 @@
 """asi-utils, a partial cross-platform, pure-python implementation of sg3-utils
 
 Usage:
-    asi-utils turs    [options] <device> [--number=NUM]
-    asi-utils inq     [options] <device> [--page=PG]
-    asi-utils luns    [options] <device> [--select=SR]
-    asi-utils rtpg    [options] <device> [--extended]
-    asi-utils readcap [options] <device> [--long]
-    asi-utils raw     [options] <device> <cdb>... [--request=RLEN] [--outfile=OFILE] [--infile=IFILE] [--send=SLEN]
-    asi-utils logs    [options] <device> [--page=PG]
-    asi-utils reset   [options] <device> [--target | --host | --device]
+    asi-utils turs                [options] <device> [--number=NUM]
+    asi-utils inq                 [options] <device> [--page=PG]
+    asi-utils luns                [options] <device> [--select=SR]
+    asi-utils rtpg                [options] <device> [--extended]
+    asi-utils pr_readkeys         [options] <device>
+    asi-utils pr_readcap          [options] <device> [--long]
+    asi-utils pr_readreservation  [options] <device>
+    asi-utils pr_register         [options] <device> <key>
+    asi-utils pr_unregister       [options] <device> <key>
+    asi-utils pr_reserve          [options] <device> <key>
+    asi-utils pr_release          [options] <device> <key>
+    asi-utils reserve             [options] <device> <third_party_device_id>
+    asi-utils release             [options] <device> <third_party_device_id>
+    asi-utils raw                 [options] <device> <cdb>... [--request=RLEN] [--outfile=OFILE] [--infile=IFILE] [--send=SLEN]
+    asi-utils logs                [options] <device> [--page=PG]
+    asi-utils reset               [options] <device> [--target | --host | --device]
 
 Options:
     -n NUM, --number=NUM        number of test_unit_ready commands [default: 1]
@@ -22,7 +30,7 @@ Options:
     --send=SLEN                 send SLEN bytes of data (data-out)
     --target                    target reset
     --host                      host (bus adapter: HBA) reset
-    --device                    device (logical unit) reset
+    --device                    device (logical unit) reset    
     -r, --raw                   output response in binary
     -h, --hex                   output response in hexadecimal
     -j, --json                  output response in json
@@ -149,6 +157,69 @@ def inq(device, page):
     with asi_context(device) as asi:
         sync_wait(asi, command)
 
+def parse_key(key):
+    return int(key, 16) if key.startswith('0x') else int(key)
+
+def pr_in_command(service_action, device):
+    from infi.asi.cdb.persist.input import PersistentReserveInCommand
+    allocation_length=520
+    with asi_context(device) as asi:
+        allocated_enough = False
+        while not allocated_enough:
+            command = PersistentReserveInCommand(service_action=service_action,
+                                                 allocation_length=allocation_length)
+            response = sync_wait(asi, command, supresss_output=True)
+            allocated_enough = allocation_length >= response.required_allocation_length()
+            allocation_length = response.required_allocation_length()
+        ActiveOutputContext.output_result(response)
+
+def pr_read_keys(device):
+    from infi.asi.cdb.persist.input import PERSISTENT_RESERVE_IN_SERVICE_ACTION_CODES
+    pr_in_command(PERSISTENT_RESERVE_IN_SERVICE_ACTION_CODES.READ_KEYS, device)
+
+def pr_read_reservation(device):    
+    from infi.asi.cdb.persist.input import PERSISTENT_RESERVE_IN_SERVICE_ACTION_CODES
+    pr_in_command(PERSISTENT_RESERVE_IN_SERVICE_ACTION_CODES.READ_RESERVATION, device)
+
+def pr_out_command(command, device):
+    with asi_context(device) as asi:
+        response = sync_wait(asi, command)
+
+def pr_register(device, key):
+    from infi.asi.cdb.persist.output import PersistentReserveOutCommand, PERSISTENT_RESERVE_OUT_SERVICE_ACTION_CODES
+    command = PersistentReserveOutCommand(service_action=PERSISTENT_RESERVE_OUT_SERVICE_ACTION_CODES.REGISTER,
+                                          service_action_reservation_key=parse_key(key))
+    pr_out_command(command, device)
+
+def pr_unregister(device, key):
+    from infi.asi.cdb.persist.output import PersistentReserveOutCommand, PERSISTENT_RESERVE_OUT_SERVICE_ACTION_CODES
+    command = PersistentReserveOutCommand(service_action=PERSISTENT_RESERVE_OUT_SERVICE_ACTION_CODES.REGISTER,
+                                          reservation_key=parse_key(key))
+    pr_out_command(command, device)
+
+def pr_reserve(device, key):
+    from infi.asi.cdb.persist.output import PersistentReserveOutCommand, PERSISTENT_RESERVE_OUT_SERVICE_ACTION_CODES
+    command = PersistentReserveOutCommand(service_action=PERSISTENT_RESERVE_OUT_SERVICE_ACTION_CODES.RESERVE,
+                                          reservation_key=parse_key(key))
+    pr_out_command(command, device)
+
+def pr_release(device, key):
+    from infi.asi.cdb.persist.output import PersistentReserveOutCommand, PERSISTENT_RESERVE_OUT_SERVICE_ACTION_CODES
+    command = PersistentReserveOutCommand(service_action=PERSISTENT_RESERVE_OUT_SERVICE_ACTION_CODES.RELEASE,
+                                          reservation_key=parse_key(key))    
+    pr_out_command(command, device)
+  
+def reserve(device, third_party_device_id):
+    from infi.asi.cdb.reserve import Reserve10Command
+    command = Reserve10Command(parse_key(third_party_device_id))
+    with asi_context(device) as asi:
+        sync_wait(asi, command)
+
+def release(device, third_party_device_id):
+    from infi.asi.cdb.release import Release10Command
+    command = Release10Command(parse_key(third_party_device_id))
+    with asi_context(device) as asi:
+        sync_wait(asi, command)
 
 def luns(device, select_report):
     from infi.asi.cdb.report_luns import ReportLunsCommand
@@ -266,6 +337,10 @@ def set_formatters(arguments):
     # Output formatters for specific commands
     if arguments['readcap']:
         ActiveOutputContext.set_result_formatter(ReadcapOutputFormatter())
+    if arguments['readkeys']:
+        ActiveOutputContext.set_result_formatter(ReadkeysOutputFormatter())
+    if arguments['readreservation']:
+        ActiveOutputContext.set_result_formatter(ReadreservationOutputFormatter())
     elif arguments['luns']:
         ActiveOutputContext.set_result_formatter(LunsOutputFormatter())
     elif arguments['rtpg']:
@@ -298,6 +373,22 @@ def main(argv=sys.argv[1:]):
         rtpg(arguments['<device>'], extended=arguments['--extended'])
     elif arguments['readcap']:
         readcap(arguments['<device>'], read_16=arguments['--long'])
+    elif arguments['pr_readkeys']:
+        pr_read_keys(arguments['<device>'])
+    elif arguments['pr_register']:
+        pr_register(arguments['<device>'], arguments['<key>'])
+    elif arguments['pr_unregister']:
+        pr_unregister(arguments['<device>'], arguments['<key>'])
+    elif arguments['pr_reserve']:
+        pr_reserve(arguments['<device>'], arguments['<key>'])
+    elif arguments['pr_release']:
+        pr_release(arguments['<device>'], arguments['<key>'])
+    elif arguments['reserve']:
+        reserve(arguments['<device>'], arguments['<third_party_device_id>'])
+    elif arguments['release']:
+        release(arguments['<device>'], arguments['<third_party_device_id>'])
+    elif arguments['pr_readreservation']:
+        pr_read_reservation(arguments['<device>'])
     elif arguments['raw']:
         raw(arguments['<device>'], cdb=arguments['<cdb>'],
             request_length=arguments['--request'], output_file=arguments['--outfile'],
