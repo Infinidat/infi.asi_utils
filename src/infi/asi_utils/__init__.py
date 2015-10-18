@@ -5,8 +5,8 @@ Usage:
     asi-utils inq                 [options] <device> [--page=PG]
     asi-utils luns                [options] <device> [--select=SR]
     asi-utils rtpg                [options] <device> [--extended]
+    asi-utils readcap             [options] <device> [--long]
     asi-utils pr_readkeys         [options] <device>
-    asi-utils pr_readcap          [options] <device> [--long]
     asi-utils pr_readreservation  [options] <device>
     asi-utils pr_register         [options] <device> <key>
     asi-utils pr_unregister       [options] <device> <key>
@@ -30,7 +30,7 @@ Options:
     --send=SLEN                 send SLEN bytes of data (data-out)
     --target                    target reset
     --host                      host (bus adapter: HBA) reset
-    --device                    device (logical unit) reset    
+    --device                    device (logical unit) reset
     -r, --raw                   output response in binary
     -h, --hex                   output response in hexadecimal
     -j, --json                  output response in json
@@ -177,7 +177,7 @@ def pr_read_keys(device):
     from infi.asi.cdb.persist.input import PERSISTENT_RESERVE_IN_SERVICE_ACTION_CODES
     pr_in_command(PERSISTENT_RESERVE_IN_SERVICE_ACTION_CODES.READ_KEYS, device)
 
-def pr_read_reservation(device):    
+def pr_read_reservation(device):
     from infi.asi.cdb.persist.input import PERSISTENT_RESERVE_IN_SERVICE_ACTION_CODES
     pr_in_command(PERSISTENT_RESERVE_IN_SERVICE_ACTION_CODES.READ_RESERVATION, device)
 
@@ -206,9 +206,9 @@ def pr_reserve(device, key):
 def pr_release(device, key):
     from infi.asi.cdb.persist.output import PersistentReserveOutCommand, PERSISTENT_RESERVE_OUT_SERVICE_ACTION_CODES
     command = PersistentReserveOutCommand(service_action=PERSISTENT_RESERVE_OUT_SERVICE_ACTION_CODES.RELEASE,
-                                          reservation_key=parse_key(key))    
+                                          reservation_key=parse_key(key))
     pr_out_command(command, device)
-  
+
 def reserve(device, third_party_device_id):
     from infi.asi.cdb.reserve import Reserve10Command
     command = Reserve10Command(parse_key(third_party_device_id))
@@ -337,9 +337,9 @@ def set_formatters(arguments):
     # Output formatters for specific commands
     if arguments['readcap']:
         ActiveOutputContext.set_result_formatter(ReadcapOutputFormatter())
-    if arguments['readkeys']:
+    if arguments['pr_readkeys']:
         ActiveOutputContext.set_result_formatter(ReadkeysOutputFormatter())
-    if arguments['readreservation']:
+    if arguments['pr_readreservation']:
         ActiveOutputContext.set_result_formatter(ReadreservationOutputFormatter())
     elif arguments['luns']:
         ActiveOutputContext.set_result_formatter(LunsOutputFormatter())
