@@ -345,6 +345,8 @@ def set_formatters(arguments):
         ActiveOutputContext.set_result_formatter(LunsOutputFormatter())
     elif arguments['rtpg']:
         ActiveOutputContext.set_result_formatter(RtpgOutputFormatter())
+    elif arguments['inq']:
+        ActiveOutputContext.set_result_formatter(InqOutputFormatter())
     # Hex/raw/json modes override
     if arguments['--hex']:
         ActiveOutputContext.set_formatters(HexOutputFormatter())

@@ -109,6 +109,60 @@ class ReadcapOutputFormatter(OutputFormatter):
         params['size_gb'] = params['size'] / 1000.0 / 1000.0 / 1000.0
         return '\n'.join(lines).format(**params)
 
+
+class InqOutputFormatter(DefaultOutputFormatter):
+
+    SUPPORTED_PAGES = {0x0: [' Only hex output supported. sg_vpd decodes more pages.',
+                            'VPD INQUIRY, page code=0x00:',
+                            '   [PQual={peripheral_device[qualifier]}  Peripheral device type: {peripheral_device_type}]',
+                            '   Supported VPD pages:',
+                            ],
+                       0x80: ['VPD INQUIRY: Unit serial number page',
+                              '  Unit serial number: {product_serial_number}'
+                             ],
+                       0x83: ['VPD INQUIRY: Device Identification page',]
+                       }
+
+    def format(self, item):
+        from infi.asi.cdb.inquiry.vpd_pages import SCSI_PERIPHERAL_DEVICE_TYPE, SCSI_VPD_NAME, SCSI_CODE_SETS, \
+        SCSI_DESIGNATOR_TYPES, SCSI_DESIGNATOR_ASSOCIATIONS, SCSI_DESIGNATOR_TYPE_OUTPUT
+        data = self._to_dict(item)
+        if data['page_code'] == 0x00:
+            vpd_string = '      {number} {name}'
+            vpd_lines = []
+            for vpd_page in data['vpd_parameters']:
+                if vpd_page in range(0xb0, 0xc0):  # 0xb0 to 0xbf are per peripheral device type
+                    page_name = SCSI_VPD_NAME.get(vpd_page, {}).get(data['peripheral_device']['type'], '')
+                else:
+                    page_name = SCSI_VPD_NAME.get(vpd_page, '')
+                vpd_dictionary = {'number': hex(vpd_page), 'name': page_name}
+                vpd_lines.append(vpd_string.format(**vpd_dictionary))
+            self.SUPPORTED_PAGES[data['page_code']] += vpd_lines
+            data['peripheral_device_type'] = SCSI_PERIPHERAL_DEVICE_TYPE[data['peripheral_device']['type']]
+        elif data['page_code'] == 0x80:
+            pass  # nothing to do here...
+        elif data['page_code'] == 0x83:
+            descriptor_base_string = '''   Designation descriptor number {descriptor_number}, descriptor length: {descriptor_length}
+    designator_type: {designator_type_string},  code_set: {code_set_string}
+    associated with the {association_string}'''
+            descriptor_designators_lines = []
+            for designator_index, designator in enumerate(data['designators_list']):
+                designator.update({k+'_hex' if type(v) is int else k: hex(v) if type(v) is int else v for k,v in designator.items()})
+                designator['descriptor_number'] = designator_index + 1
+                designator['descriptor_length'] = item.designators_list[designator_index].byte_size
+                designator['code_set_string'] = SCSI_CODE_SETS[designator['code_set']]
+                designator['association_string'] = SCSI_DESIGNATOR_ASSOCIATIONS[designator['association']].lower()
+                designator['designator_type_string'] = SCSI_DESIGNATOR_TYPES[designator['designator_type']]
+                designator_string = SCSI_DESIGNATOR_TYPE_OUTPUT[designator['designator_type']]
+                if designator['designator_type'] == 3:  # NAA has more then 1 possible output
+                    designator_string = SCSI_DESIGNATOR_TYPE_OUTPUT[designator['designator_type']][designator['naa']]
+                    designator['hex_packed_string'] = '0x'+''.join(['%02x' % by for by in item.designators_list[designator_index].pack()[4:]])
+                descriptor_designators_lines.append('\n'.join([descriptor_base_string, designator_string]).format(**designator))
+            self.SUPPORTED_PAGES[data['page_code']] += descriptor_designators_lines
+        else:  # calling super() because we can't handle other pages yet
+            return super(InqOutputFormatter, self).format(item)
+        return '\n'.join(self.SUPPORTED_PAGES[data['page_code']]).format(**data)
+
 class ReadkeysOutputFormatter(OutputFormatter):
     def format(self, item):
         lines = ['Reservation keys:']
@@ -124,7 +178,7 @@ class ReadreservationOutputFormatter(OutputFormatter):
           'Reservation key: 0x%x' % item.reservation_key, \
           'Scope: 0x%x' % item.scope]
         return '\n'.join(lines)
-    
+
 class LunsOutputFormatter(OutputFormatter):
 
     def format(self, item):
