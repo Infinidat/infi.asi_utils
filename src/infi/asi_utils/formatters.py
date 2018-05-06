@@ -1,6 +1,5 @@
-from infi.instruct.struct import Struct, Field, FieldListContainer, AnonymousField
+from infi.instruct.struct import Struct, FieldListContainer, AnonymousField
 from infi.instruct.buffer import Buffer
-from infi.asi.sense.asc import AdditionalSenseCode
 import binascii
 
 
@@ -282,16 +281,16 @@ class InqOutputFormatter(DefaultOutputFormatter):
 class ReadkeysOutputFormatter(OutputFormatter):
     def format(self, item):
         lines = ['Reservation keys:']
-        if item.key_list != None:
+        if item.key_list is not None:
             for key in item.key_list:
                 lines.append('Key: {0}' % hex(key))
         return '\n'.join(lines)
 
 class ReadreservationOutputFormatter(OutputFormatter):
     def format(self, item):
-        lines = [ \
-          'Generation: 0x%x' % item.pr_generation, \
-          'Reservation key: 0x%x' % item.reservation_key, \
+        lines = [
+          'Generation: 0x%x' % item.pr_generation,
+          'Reservation key: 0x%x' % item.reservation_key,
           'Scope: 0x%x' % item.scope]
         return '\n'.join(lines)
 
