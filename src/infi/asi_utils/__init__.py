@@ -125,10 +125,13 @@ def asi_context(device):
         yield executer
 
 
-def sync_wait(asi, command, supresss_output=False):
+def sync_wait(asi, command, supresss_output=False, additional_data=dict):
     from infi.asi.coroutines.sync_adapter import sync_wait as _sync_wait
     ActiveOutputContext.output_command(command)
     result = _sync_wait(command.execute(asi))
+    if additional_data:
+        for key, value in additional_data.items():
+            setattr(result, key, value)
     if not supresss_output:
         ActiveOutputContext.output_result(result)
     return result
@@ -142,10 +145,17 @@ def turs(device, number):
             sync_wait(asi, command)
 
 
-def inq(device, page):
+def inq(device, page, supresss_output=False):
     from infi.asi.cdb.inquiry import standard, vpd_pages
+    additional_data = {}
     if page is None:
         command = standard.StandardInquiryCommand(allocation_length=219)
+        try:
+            unit_serial_number_command_result = inq(device, '0x80', supresss_output=True)
+        except:
+            additional_data = {'product_serial_number': None}
+        else:
+            additional_data = {'product_serial_number': unit_serial_number_command_result.product_serial_number}
     elif page.isdigit():
         command = vpd_pages.get_vpd_page(int(page))()
     elif page.startswith('0x'):
@@ -155,7 +165,7 @@ def inq(device, page):
     if command is None:
         raise ValueError("unsupported vpd page: %s" % page)
     with asi_context(device) as asi:
-        sync_wait(asi, command)
+        return sync_wait(asi, command, supresss_output, additional_data)
 
 def parse_key(key):
     return int(key, 16) if key.startswith('0x') else int(key)
