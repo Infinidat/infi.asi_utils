@@ -124,16 +124,16 @@ class InqOutputFormatter(DefaultOutputFormatter):
         # https://www.ibm.com/support/knowledgecenter/en/STQRQ9/com.ibm.storage.ts4500.doc/ts4500_sref_3584_minqv.html
         # http://www.tldp.org/HOWTO/archived/SCSI-Programming-HOWTO/SCSI-Programming-HOWTO-9.html
         missing_data = {}
-        item_as_bytes = [''.join(reversed(bin(byte)[2:].zfill(8))) for byte in item.pack()]
-        missing_data['aerc'] = item_as_bytes[3][7]
-        missing_data['trmtsk'] = item_as_bytes[3][6]
-        missing_data['bque'] = item_as_bytes[6][7]
-        missing_data['vs'] = item_as_bytes[6][5]
-        missing_data['mchngr'] = item_as_bytes[6][3]
-        missing_data['ackreqq'] = item_as_bytes[6][2]
-        missing_data['reladr'] = item_as_bytes[7][7]
-        missing_data['linked'] = item_as_bytes[7][3]
-        missing_data['trandis'] = item_as_bytes[7][2]
+        bytes_as_bits = [''.join(reversed(bin(byte)[2:].zfill(8))) for byte in item.pack()]
+        missing_data['aerc'] = bytes_as_bits[3][7]
+        missing_data['trmtsk'] = bytes_as_bits[3][6]
+        missing_data['bque'] = bytes_as_bits[6][7]
+        missing_data['vs'] = bytes_as_bits[6][5]
+        missing_data['mchngr'] = bytes_as_bits[6][3]
+        missing_data['ackreqq'] = bytes_as_bits[6][2]
+        missing_data['reladr'] = bytes_as_bits[7][7]
+        missing_data['linked'] = bytes_as_bits[7][3]
+        missing_data['trandis'] = bytes_as_bits[7][2]
         return missing_data
 
     def _get_vpd_page_name(self, vpd_page, data):
@@ -146,30 +146,35 @@ class InqOutputFormatter(DefaultOutputFormatter):
 
     def _get_designator_output_string(self, designator):
         # Working Draft SCSI Primary Commands - 4 (SPC-4) - Tables 532- 551 (page 615- 624)
-        DESIGNATORS_OUTPUT = {0x03:  # NAA has more then 1 possible output
-                              {0x02:
-                               '      NAA 2, vendor specific identifier A: 0x{vendor_specific_identifier_a:02x}\n' +
-                               '      IEEE Company_id: 0x{ieee_company_id:02x}\n' +
-                               '      vendor specific identifier B: 0x{vendor_specific_identifier_b:02x}',
-                               0x03:
-                               '      NAA 3, Locally assigned:',
-                               0x05:
-                               '      NAA 5, IEEE Company_id: 0x{ieee_company_id:02x}\n' +
-                               '      Vendor Specific Identifier: 0x{vendor_specific_identifier:02x}',
-                               0x06:
-                               '      NAA 6, IEEE Company_id: 0x{ieee_company_id:02x}\n' +
-                               '      Vendor Specific Identifier: 0x{vendor_specific_identifier:02x}\n' +
-                               '      Vendor Specific Identifier Extension:' +
-                               ' 0x{vendor_specific_identifier_extension:01x}\n' +
-                               '      [{packed_string}]'},
-                              0x04: '      Relative target port: 0x{relative_target_port_identifier:02x}',
-                              0x05: '      Target port group: 0x{target_port_group:02x}',
-                              0x06: '      Logical unit group: {logical_group}',
-                              0x07: '      MD5 logical unit identifier:\n{md5_logical_identifier}',
-                              0x08: '      SCSI name string:\n{scsi_name_string}',
-                              0x0a: '      Locally assigned UUID: {assigned_uuid}',
-                              }
-        if designator['designator_type'] == 3:  # NAA has more then 1 possible output
+        DESIGNATORS_OUTPUT = {
+            0x03: {
+                0x02: (
+                    '      NAA 2, vendor specific identifier A: 0x{vendor_specific_identifier_a:02x}\n'
+                    '      IEEE Company_id: 0x{ieee_company_id:02x}\n'
+                    '      vendor specific identifier B: 0x{vendor_specific_identifier_b:02x}'
+                      ),
+                0x03:
+                    '      NAA 3, Locally assigned:',
+                0x05: (
+                    '      NAA 5, IEEE Company_id: 0x{ieee_company_id:02x}\n'
+                    '      Vendor Specific Identifier: 0x{vendor_specific_identifier:02x}'
+                      ),
+                0x06: (
+                    '      NAA 6, IEEE Company_id: 0x{ieee_company_id:02x}\n'
+                    '      Vendor Specific Identifier: 0x{vendor_specific_identifier:02x}\n'
+                    '      Vendor Specific Identifier Extension:'
+                    ' 0x{vendor_specific_identifier_extension:01x}\n'
+                    '      [{packed_string}]'
+                      )
+                  },
+            0x04: '      Relative target port: 0x{relative_target_port_identifier:02x}',
+            0x05: '      Target port group: 0x{target_port_group:02x}',
+            0x06: '      Logical unit group: {logical_group}',
+            0x07: '      MD5 logical unit identifier:\n{md5_logical_identifier}',
+            0x08: '      SCSI name string:\n{scsi_name_string}',
+            0x0a: '      Locally assigned UUID: {assigned_uuid}',
+        }
+        if type(DESIGNATORS_OUTPUT[designator['designator_type']]) is dict:  # NAA has more then 1 possible output
             designator_string = DESIGNATORS_OUTPUT[designator['designator_type']][designator['naa']]
         else:
             designator_string = DESIGNATORS_OUTPUT[designator['designator_type']]
@@ -178,43 +183,55 @@ class InqOutputFormatter(DefaultOutputFormatter):
     def _format_none_page(self, data, item):
         from infi.asi.cdb.inquiry.vpd_pages import SCSI_PERIPHERAL_DEVICE_TYPE, SCSI_VERSION_NAME
         device = data['peripheral_device']
-        lines = ['standard INQUIRY:',
-                 '  PQual={device_qualifier}  Device_type={device_type}  RMB={rmb}' +
-                 '  version=0x{version_hex:02x}  [{version_name}]',
-                 '  [AERC={aerc}]  [TrmTsk={trmtsk}]  NormACA={normaca}  HiSUP={hisup}' +
-                 '  Resp_data_format={response_data_format}',
-                 '  SCCS={sccs}  ACC={acc}  TPGS={tpgs}  3PC={threepc}  Protect={protect}  [BQue={bque}]',
-                 '  EncServ={enc_serv}  MultiP={multi_p} (VS={vs})  [MChngr={mchngr}]' +
-                 '  [ACKREQQ={ackreqq}]  Addr16={addr16}',
-                 '  [RelAdr={reladr}]  WBus16={wbus16}  Sync={sync}  Linked={linked}' +
-                 '  [TranDis={trandis}]  CmdQue={cmd_que}',
-                 '  [SPI: Clocking=0x{extended[clocking]:01x}  QAS={extended[qas]}  IUS={extended[ius]}]'
-                 if data['extended'] is not None else '',
-                 '    length={size} ({size_in_hex})   Peripheral device type: {type_in_string}',
-                 ' Vendor identification: {t10_vendor_identification}',
-                 ' Product identification: {product_identification}',
-                 ' Product revision level: {product_revision_level}',
-                 ' Unit serial number: {product_serial_number}'
-                 if item.product_serial_number is not None else ''
-                 ]
+        lines = [
+            'standard INQUIRY:',
+            (
+            '  PQual={device_qualifier}  Device_type={device_type}  RMB={rmb}'
+            '  version=0x{version_hex:02x}  [{version_name}]'
+            ),
+            (
+            '  [AERC={aerc}]  [TrmTsk={trmtsk}]  NormACA={normaca}  HiSUP={hisup}'
+            '  Resp_data_format={response_data_format}'
+            ),
+            '  SCCS={sccs}  ACC={acc}  TPGS={tpgs}  3PC={threepc}  Protect={protect}  [BQue={bque}]',
+            (
+            '  EncServ={enc_serv}  MultiP={multi_p} (VS={vs})  [MChngr={mchngr}]'
+            '  [ACKREQQ={ackreqq}]  Addr16={addr16}'
+            ),
+            (
+            '  [RelAdr={reladr}]  WBus16={wbus16}  Sync={sync}  Linked={linked}'
+            '  [TranDis={trandis}]  CmdQue={cmd_que}'
+            ),
+            '  [SPI: Clocking=0x{extended[clocking]:01x}  QAS={extended[qas]}  IUS={extended[ius]}]'
+            if data['extended'] is not None else '',
+            '    length={size} ({size_in_hex})   Peripheral device type: {type_in_string}',
+            ' Vendor identification: {t10_vendor_identification}',
+            ' Product identification: {product_identification}',
+            ' Product revision level: {product_revision_level}',
+            ' Unit serial number: {product_serial_number}'
+            if item.product_serial_number is not None else ''
+        ]
         data.update(self._fill_missing_values(item))
         lines = (line for line in lines if line)
-        return '\n'.join(lines).format(device_qualifier=device['qualifier'],
-                                       device_type=device['type'],
-                                       version_hex=data['version'],
-                                       size=item.calc_byte_size(),
-                                       size_in_hex=hex(item.calc_byte_size()),
-                                       type_in_string=SCSI_PERIPHERAL_DEVICE_TYPE[device['type']],
-                                       version_name=SCSI_VERSION_NAME[data['version']],
-                                       product_serial_number=item.product_serial_number,
-                                       **data)
+        return '\n'.join(lines).format(
+            device_qualifier=device['qualifier'],
+            device_type=device['type'],
+            version_hex=data['version'],
+            size=item.calc_byte_size(),
+            size_in_hex=hex(item.calc_byte_size()),
+            type_in_string=SCSI_PERIPHERAL_DEVICE_TYPE[device['type']],
+            version_name=SCSI_VERSION_NAME[data['version']],
+            product_serial_number=item.product_serial_number,
+            **data)
 
     def _format_0x00_page(self, data, item):
         from infi.asi.cdb.inquiry.vpd_pages import SCSI_PERIPHERAL_DEVICE_TYPE
-        lines = [' Only hex output supported. sg_vpd decodes more pages.',
-                 'VPD INQUIRY, page code=0x00:',
-                 '   [PQual={peripheral_device_qualifier}  Peripheral device type: {peripheral_device_type}]',
-                 '   Supported VPD pages:', ]
+        lines = [
+            ' Only hex output supported. sg_vpd decodes more pages.',
+            'VPD INQUIRY, page code=0x00:',
+            '   [PQual={peripheral_device_qualifier}  Peripheral device type: {peripheral_device_type}]',
+            '   Supported VPD pages:',
+        ]
         vpd_string = '     {number}\t{name}'
         lines += [vpd_string.format(number=hex(vpd_page), name=self._get_vpd_page_name(vpd_page, data))
                   for vpd_page in data['vpd_parameters']]
@@ -234,10 +251,14 @@ class InqOutputFormatter(DefaultOutputFormatter):
         from infi.asi.cdb.inquiry.vpd_pages import SCSI_CODE_SETS
 
         lines = ['VPD INQUIRY: Device Identification page']
-        descriptor_base_string = ['  Designation descriptor number {descriptor_number}, ' +
-                                  'descriptor length: {descriptor_length}',
-                                  '    designator_type: {designator_type_string},  code_set: {code_set_string}',
-                                  '    associated with the {association_string}']
+        descriptor_base_string = [
+            (
+            '  Designation descriptor number {descriptor_number}, '
+            'descriptor length: {descriptor_length}'
+            ),
+            '    designator_type: {designator_type_string},  code_set: {code_set_string}',
+            '    associated with the {association_string}'
+        ]
         descriptor_lines = []
         for designator_index, designator in enumerate(data['designators_list']):
             designator_string = self._get_designator_output_string(designator)
@@ -248,7 +269,7 @@ class InqOutputFormatter(DefaultOutputFormatter):
                 designator_type_string=SCSI_DESIGNATOR_TYPES[designator['designator_type']],
                 code_set_string=SCSI_CODE_SETS[designator['code_set']],
                 association_string=SCSI_DESIGNATOR_ASSOCIATIONS[designator['association']].lower(),
-                packed_string='0x' + hexlify(item.designators_list[designator_index].pack())[8:].decode('ASCII'),
+                packed_string='0x' + hexlify(item.designators_list[designator_index].pack())[8:],
                 ieee_company_id=designator.get('ieee_company_id'),
                 vendor_specific_identifier=designator.get('vendor_specific_identifier'),
                 vendor_specific_identifier_extension=designator.get('vendor_specific_identifier_extension'),
@@ -268,9 +289,11 @@ class InqOutputFormatter(DefaultOutputFormatter):
     def format(self, item):
         data = self._to_dict(item)
         page_code = data.get('page_code')
-        if page_code not in self.SUPPORTED_PAGES:   # calling super() because we don't handle other pages yet
-            return super(InqOutputFormatter, self).format(item)
-        return self.SUPPORTED_PAGES[page_code](data, item)
+        if page_code in self.SUPPORTED_PAGES:
+            format_method = self.SUPPORTED_PAGES[page_code]
+            return format_method(data, item)
+        # calling super() because we don't handle other pages yet
+        return super(InqOutputFormatter, self).format(item)
 
 
 class ReadkeysOutputFormatter(OutputFormatter):
