@@ -152,21 +152,20 @@ class InqOutputFormatter(DefaultOutputFormatter):
                     '      NAA 2, vendor specific identifier A: 0x{vendor_specific_identifier_a:02x}\n'
                     '      IEEE Company_id: 0x{ieee_company_id:02x}\n'
                     '      vendor specific identifier B: 0x{vendor_specific_identifier_b:02x}'
-                      ),
+                ),
                 0x03:
                     '      NAA 3, Locally assigned:',
                 0x05: (
                     '      NAA 5, IEEE Company_id: 0x{ieee_company_id:02x}\n'
                     '      Vendor Specific Identifier: 0x{vendor_specific_identifier:02x}'
-                      ),
+                ),
                 0x06: (
                     '      NAA 6, IEEE Company_id: 0x{ieee_company_id:02x}\n'
                     '      Vendor Specific Identifier: 0x{vendor_specific_identifier:02x}\n'
-                    '      Vendor Specific Identifier Extension:'
-                    ' 0x{vendor_specific_identifier_extension:01x}\n'
+                    '      Vendor Specific Identifier Extension: 0x{vendor_specific_identifier_extension:01x}\n'
                     '      [{packed_string}]'
-                      )
-                  },
+                )
+            },
             0x04: '      Relative target port: 0x{relative_target_port_identifier:02x}',
             0x05: '      Target port group: 0x{target_port_group:02x}',
             0x06: '      Logical unit group: {logical_group}',
@@ -185,23 +184,11 @@ class InqOutputFormatter(DefaultOutputFormatter):
         device = data['peripheral_device']
         lines = [
             'standard INQUIRY:',
-            (
-            '  PQual={device_qualifier}  Device_type={device_type}  RMB={rmb}'
-            '  version=0x{version_hex:02x}  [{version_name}]'
-            ),
-            (
-            '  [AERC={aerc}]  [TrmTsk={trmtsk}]  NormACA={normaca}  HiSUP={hisup}'
-            '  Resp_data_format={response_data_format}'
-            ),
+            '  PQual={pqual}  Device_type={device_type}  RMB={rmb}  version=0x{version:02x}  [{version_name}]',
+            '  [AERC={aerc}]  [TrmTsk={trmtsk}]  NormACA={normaca}  HiSUP={hisup}  Resp_data_format={resp_data_format}',
             '  SCCS={sccs}  ACC={acc}  TPGS={tpgs}  3PC={threepc}  Protect={protect}  [BQue={bque}]',
-            (
-            '  EncServ={enc_serv}  MultiP={multi_p} (VS={vs})  [MChngr={mchngr}]'
-            '  [ACKREQQ={ackreqq}]  Addr16={addr16}'
-            ),
-            (
-            '  [RelAdr={reladr}]  WBus16={wbus16}  Sync={sync}  Linked={linked}'
-            '  [TranDis={trandis}]  CmdQue={cmd_que}'
-            ),
+            '  EncServ={enc_serv}  MultiP={multi_p} (VS={vs})  [MChngr={mchngr}]  [ACKREQQ={ackreqq}]  Addr16={addr16}',
+            '  [RelAdr={reladr}]  WBus16={wbus16}  Sync={sync}  Linked={linked}  [TranDis={trandis}]  CmdQue={cmd_que}',
             '  [SPI: Clocking=0x{extended[clocking]:01x}  QAS={extended[qas]}  IUS={extended[ius]}]'
             if data['extended'] is not None else '',
             '    length={size} ({size_in_hex})   Peripheral device type: {type_in_string}',
@@ -214,14 +201,14 @@ class InqOutputFormatter(DefaultOutputFormatter):
         data.update(self._fill_missing_values(item))
         lines = (line for line in lines if line)
         return '\n'.join(lines).format(
-            device_qualifier=device['qualifier'],
+            pqual=device['qualifier'],
             device_type=device['type'],
-            version_hex=data['version'],
             size=item.calc_byte_size(),
             size_in_hex=hex(item.calc_byte_size()),
             type_in_string=SCSI_PERIPHERAL_DEVICE_TYPE[device['type']],
             version_name=SCSI_VERSION_NAME[data['version']],
             product_serial_number=item.product_serial_number,
+            resp_data_format=data['response_data_format'],
             **data)
 
     def _format_0x00_page(self, data, item):
@@ -252,10 +239,7 @@ class InqOutputFormatter(DefaultOutputFormatter):
 
         lines = ['VPD INQUIRY: Device Identification page']
         descriptor_base_string = [
-            (
-            '  Designation descriptor number {descriptor_number}, '
-            'descriptor length: {descriptor_length}'
-            ),
+            '  Designation descriptor number {descriptor_number}, descriptor length: {descriptor_length}',
             '    designator_type: {designator_type_string},  code_set: {code_set_string}',
             '    associated with the {association_string}'
         ]
