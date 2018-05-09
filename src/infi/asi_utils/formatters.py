@@ -173,7 +173,7 @@ class InqOutputFormatter(DefaultOutputFormatter):
             0x08: '      SCSI name string:\n{scsi_name_string}',
             0x0a: '      Locally assigned UUID: {assigned_uuid}',
         }
-        if type(DESIGNATORS_OUTPUT[designator['designator_type']]) is dict:  # NAA has more then 1 possible output
+        if isinstance(DESIGNATORS_OUTPUT[designator['designator_type']], dict):  # NAA has more then 1 possible output
             designator_string = DESIGNATORS_OUTPUT[designator['designator_type']][designator['naa']]
         else:
             designator_string = DESIGNATORS_OUTPUT[designator['designator_type']]
@@ -191,7 +191,7 @@ class InqOutputFormatter(DefaultOutputFormatter):
             '  [RelAdr={reladr}]  WBus16={wbus16}  Sync={sync}  Linked={linked}  [TranDis={trandis}]  CmdQue={cmd_que}',
             '  [SPI: Clocking=0x{extended[clocking]:01x}  QAS={extended[qas]}  IUS={extended[ius]}]'
             if data['extended'] is not None else '',
-            '    length={size} ({size_in_hex})   Peripheral device type: {type_in_string}',
+            '    length={size} (0x{size:02x})   Peripheral device type: {type_in_string}',
             ' Vendor identification: {t10_vendor_identification}',
             ' Product identification: {product_identification}',
             ' Product revision level: {product_revision_level}',
@@ -204,7 +204,6 @@ class InqOutputFormatter(DefaultOutputFormatter):
             pqual=device['qualifier'],
             device_type=device['type'],
             size=item.calc_byte_size(),
-            size_in_hex=hex(item.calc_byte_size()),
             type_in_string=SCSI_PERIPHERAL_DEVICE_TYPE[device['type']],
             version_name=SCSI_VERSION_NAME[data['version']],
             product_serial_number=item.product_serial_number,
