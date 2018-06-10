@@ -43,7 +43,7 @@ import sys
 import docopt
 from infi.pyutils.contexts import contextmanager
 from infi.pyutils.decorators import wraps
-from formatters import *
+from . import formatters
 
 
 def exception_handler(func):
@@ -69,8 +69,8 @@ class OutputContext(object):
     def __init__(self):
         super(OutputContext, self).__init__()
         self._verbose = False
-        self._command_formatter = DefaultOutputFormatter()
-        self._result_formatter = DefaultOutputFormatter()
+        self._command_formatter = formatters.DefaultOutputFormatter()
+        self._result_formatter = formatters.DefaultOutputFormatter()
 
     def enable_verbose(self):
         self._verbose = True
@@ -97,7 +97,7 @@ class OutputContext(object):
         self._print(self._result_formatter.format(result), file=file)
 
     def output_error(self, result, file=sys.stdout):
-        self._print(ErrorOutputFormatter().format(result), file=file)
+        self._print(formatters.ErrorOutputFormatter().format(result), file=file)
 
 
 ActiveOutputContext = OutputContext()
@@ -124,45 +124,23 @@ def asi_context(device):
     with _func(device) as executer:
         yield executer
 
-
-def sync_wait(asi, command, supresss_output=False):
+def sync_wait(asi, command, supresss_output=False, additional_data=dict):
     from infi.asi.coroutines.sync_adapter import sync_wait as _sync_wait
     ActiveOutputContext.output_command(command)
     result = _sync_wait(command.execute(asi))
+    if additional_data:
+        for key, value in additional_data.items():
+            setattr(result, key, value)
     if not supresss_output:
         ActiveOutputContext.output_result(result)
     return result
-
-
-def turs(device, number):
-    from infi.asi.cdb.tur import TestUnitReadyCommand
-    with asi_context(device) as asi:
-        for i in xrange(int(number)):
-            command = TestUnitReadyCommand()
-            sync_wait(asi, command)
-
-
-def inq(device, page):
-    from infi.asi.cdb.inquiry import standard, vpd_pages
-    if page is None:
-        command = standard.StandardInquiryCommand(allocation_length=219)
-    elif page.isdigit():
-        command = vpd_pages.get_vpd_page(int(page))()
-    elif page.startswith('0x'):
-        command = vpd_pages.get_vpd_page(int(page, 16))()
-    else:
-        raise ValueError("invalid vpd page: %s" % page)
-    if command is None:
-        raise ValueError("unsupported vpd page: %s" % page)
-    with asi_context(device) as asi:
-        sync_wait(asi, command)
 
 def parse_key(key):
     return int(key, 16) if key.startswith('0x') else int(key)
 
 def pr_in_command(service_action, device):
     from infi.asi.cdb.persist.input import PersistentReserveInCommand
-    allocation_length=520
+    allocation_length = 520
     with asi_context(device) as asi:
         allocated_enough = False
         while not allocated_enough:
@@ -173,17 +151,46 @@ def pr_in_command(service_action, device):
             allocation_length = response.required_allocation_length()
         ActiveOutputContext.output_result(response)
 
-def pr_read_keys(device):
+def pr_out_command(command, device):
+    with asi_context(device) as asi:
+        sync_wait(asi, command)
+
+def pr_readkeys(device):
     from infi.asi.cdb.persist.input import PERSISTENT_RESERVE_IN_SERVICE_ACTION_CODES
     pr_in_command(PERSISTENT_RESERVE_IN_SERVICE_ACTION_CODES.READ_KEYS, device)
 
-def pr_read_reservation(device):
+def pr_readreservation(device):
     from infi.asi.cdb.persist.input import PERSISTENT_RESERVE_IN_SERVICE_ACTION_CODES
     pr_in_command(PERSISTENT_RESERVE_IN_SERVICE_ACTION_CODES.READ_RESERVATION, device)
 
-def pr_out_command(command, device):
+def turs(device, number):
+    from infi.asi.cdb.tur import TestUnitReadyCommand
     with asi_context(device) as asi:
-        response = sync_wait(asi, command)
+        for i in xrange(int(number)):
+            command = TestUnitReadyCommand()
+            sync_wait(asi, command)
+
+def inq(device, page, supresss_output=False):
+    from infi.asi.cdb.inquiry import standard, vpd_pages
+    additional_data = {}
+    if page is None:
+        command = standard.StandardInquiryCommand(allocation_length=219)
+        try:
+            unit_serial_number_command_result = inq(device, '0x80', supresss_output=True)
+        except:
+            additional_data = {'product_serial_number': None}
+        else:
+            additional_data = {'product_serial_number': unit_serial_number_command_result.product_serial_number}
+    elif page.isdigit():
+        command = vpd_pages.get_vpd_page(int(page))()
+    elif page.startswith('0x'):
+        command = vpd_pages.get_vpd_page(int(page, 16))()
+    else:
+        raise ValueError("invalid vpd page: %s" % page)
+    if command is None:
+        raise ValueError("unsupported vpd page: %s" % page)
+    with asi_context(device) as asi:
+        return sync_wait(asi, command, supresss_output, additional_data)
 
 def pr_register(device, key):
     from infi.asi.cdb.persist.output import PersistentReserveOutCommand, PERSISTENT_RESERVE_OUT_SERVICE_ACTION_CODES
@@ -212,40 +219,31 @@ def pr_release(device, key):
 def reserve(device, third_party_device_id):
     from infi.asi.cdb.reserve import Reserve10Command
     command = Reserve10Command(parse_key(third_party_device_id))
-    with asi_context(device) as asi:
-        sync_wait(asi, command)
+    pr_out_command(command, device)
 
 def release(device, third_party_device_id):
     from infi.asi.cdb.release import Release10Command
     command = Release10Command(parse_key(third_party_device_id))
-    with asi_context(device) as asi:
-        sync_wait(asi, command)
+    pr_out_command(command, device)
 
 def luns(device, select_report):
     from infi.asi.cdb.report_luns import ReportLunsCommand
     command = ReportLunsCommand(select_report=int(select_report))
-    with asi_context(device) as asi:
-        sync_wait(asi, command)
-
+    pr_out_command(command, device)
 
 def rtpg(device, extended):
     from infi.asi.cdb.rtpg import RTPGCommand
     data_format = 1 if extended else 0
     command = RTPGCommand(parameter_data_format=data_format)
-    with asi_context(device) as asi:
-        sync_wait(asi, command)
-
+    pr_out_command(command, device)
 
 def readcap(device, read_16):
     from infi.asi.cdb.read_capacity import ReadCapacity10Command
     from infi.asi.cdb.read_capacity import ReadCapacity16Command
     command = ReadCapacity16Command() if read_16 else ReadCapacity10Command()
-    with asi_context(device) as asi:
-        sync_wait(asi, command)
-
+    pr_out_command(command, device)
 
 def build_raw_command(cdb, request_length, output_file, send_length, input_file):
-    from infi.asi.cdb import CDBBuffer
     from infi.asi import SCSIReadCommand, SCSIWriteCommand
     from hexdump import restore
 
@@ -295,7 +293,6 @@ def build_raw_command(cdb, request_length, output_file, send_length, input_file)
 
     return CDB()
 
-
 def raw(device, cdb, request_length, output_file, send_length, input_file):
     command = build_raw_command(cdb, request_length, output_file, send_length, input_file)
     with asi_context(device) as asi:
@@ -303,7 +300,6 @@ def raw(device, cdb, request_length, output_file, send_length, input_file):
         if output_file:
             with open(output_file, 'w') as fd:
                 fd.write(result)
-
 
 def logs(device, page):
     from infi.asi.cdb.log_sense import LogSenseCommand
@@ -316,9 +312,7 @@ def logs(device, page):
     else:
         raise ValueError("invalid vpd page: %s" % page)
     command = LogSenseCommand(page_code=page)
-    with asi_context(device) as asi:
-        sync_wait(asi, command)
-
+    pr_out_command(command, device)
 
 def reset(device, target_reset, host_reset, lun_reset):
     from infi.os_info import get_platform_string
@@ -335,24 +329,22 @@ def reset(device, target_reset, host_reset, lun_reset):
 
 def set_formatters(arguments):
     # Output formatters for specific commands
-    if arguments['readcap']:
-        ActiveOutputContext.set_result_formatter(ReadcapOutputFormatter())
-    if arguments['pr_readkeys']:
-        ActiveOutputContext.set_result_formatter(ReadkeysOutputFormatter())
-    if arguments['pr_readreservation']:
-        ActiveOutputContext.set_result_formatter(ReadreservationOutputFormatter())
-    elif arguments['luns']:
-        ActiveOutputContext.set_result_formatter(LunsOutputFormatter())
-    elif arguments['rtpg']:
-        ActiveOutputContext.set_result_formatter(RtpgOutputFormatter())
+    result_formatters = {'readcap': formatters.ReadcapOutputFormatter,
+                         'pr_readkeys': formatters.ReadkeysOutputFormatter,
+                         'pr_readreservation': formatters.ReadreservationOutputFormatter,
+                         'luns': formatters.LunsOutputFormatter,
+                         'rtpg': formatters.RtpgOutputFormatter,
+                         'inq': formatters.InqOutputFormatter}
+    for key, formatter_class in result_formatters.values():
+        if arguments[key]:
+            ActiveOutputContext.set_result_formatter(formatter_class)
     # Hex/raw/json modes override
     if arguments['--hex']:
-        ActiveOutputContext.set_formatters(HexOutputFormatter())
+        ActiveOutputContext.set_formatters(formatters.HexOutputFormatter())
     elif arguments['--raw']:
-        ActiveOutputContext.set_formatters(RawOutputFormatter())
+        ActiveOutputContext.set_formatters(formatters.RawOutputFormatter())
     elif arguments['--json']:
-        ActiveOutputContext.set_formatters(JsonOutputFormatter())
-
+        ActiveOutputContext.set_formatters(formatters.JsonOutputFormatter())
 
 @exception_handler
 def main(argv=sys.argv[1:]):
@@ -374,7 +366,7 @@ def main(argv=sys.argv[1:]):
     elif arguments['readcap']:
         readcap(arguments['<device>'], read_16=arguments['--long'])
     elif arguments['pr_readkeys']:
-        pr_read_keys(arguments['<device>'])
+        pr_readkeys(arguments['<device>'])
     elif arguments['pr_register']:
         pr_register(arguments['<device>'], arguments['<key>'])
     elif arguments['pr_unregister']:
@@ -388,7 +380,7 @@ def main(argv=sys.argv[1:]):
     elif arguments['release']:
         release(arguments['<device>'], arguments['<third_party_device_id>'])
     elif arguments['pr_readreservation']:
-        pr_read_reservation(arguments['<device>'])
+        pr_readreservation(arguments['<device>'])
     elif arguments['raw']:
         raw(arguments['<device>'], cdb=arguments['<cdb>'],
             request_length=arguments['--request'], output_file=arguments['--outfile'],
@@ -398,4 +390,3 @@ def main(argv=sys.argv[1:]):
     elif arguments['reset']:
         reset(arguments['<device>'], target_reset=arguments['--target'],
               host_reset=arguments['--host'], lun_reset=arguments['--device'])
-
