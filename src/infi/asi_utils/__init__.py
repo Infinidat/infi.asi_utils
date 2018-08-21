@@ -335,9 +335,9 @@ def set_formatters(arguments):
                          'luns': formatters.LunsOutputFormatter,
                          'rtpg': formatters.RtpgOutputFormatter,
                          'inq': formatters.InqOutputFormatter}
-    for key, formatter_class in result_formatters.values():
+    for key, formatter_class in result_formatters.items():
         if arguments[key]:
-            ActiveOutputContext.set_result_formatter(formatter_class)
+            ActiveOutputContext.set_result_formatter(formatter_class())
     # Hex/raw/json modes override
     if arguments['--hex']:
         ActiveOutputContext.set_formatters(formatters.HexOutputFormatter())
