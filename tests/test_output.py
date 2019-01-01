@@ -4,6 +4,7 @@ import StringIO
 import sys
 from infi.instruct import Struct, UBInt8
 from infi.instruct.buffer import Buffer, uint_field, bytes_ref
+from infi.asi_utils import formatters
 
 
 class FakeOutput(infi.asi_utils.OutputContext):
@@ -37,33 +38,27 @@ def test_verbose():
 
 def test_raw__struct():
     output = FakeOutput()
-    output.enable_raw()
-    output._print_item(_struct)
+    output.set_formatters(formatters.RawOutputFormatter())
+    output.output_result(_struct)
     assert output.stdout.getvalue() == '\x00'
 
 
 def test_raw__buffer():
     output = FakeOutput()
-    output.enable_raw()
-    output._print_item(_buffer)
+    output.set_formatters(formatters.RawOutputFormatter())
+    output.output_result(_buffer)
     assert output.stdout.getvalue() == '\x00'
 
 
 def test_hex__struct():
     output = FakeOutput()
-    output.enable_hex()
-    output._print_item(_struct)
+    output.set_formatters(formatters.HexOutputFormatter())
+    output.output_result(_struct)
     assert output.stdout.getvalue() == '00000000: 00                                                .'
 
 
 def test_hex__buffer():
     output = FakeOutput()
-    output.enable_hex()
-    output._print_item(_buffer)
+    output.set_formatters(formatters.HexOutputFormatter())
+    output.output_result(_buffer)
     assert output.stdout.getvalue() == '00000000: 00                                                .'
-
-
-def test_hexlify_block_addresses():
-    before = "ReportReadCapacityData10(last_logical_block_address=125829119, block_length_in_bytes=512)"
-    after = "ReportReadCapacityData10(last_logical_block_address=0x77fffff, block_length_in_bytes=512)"
-    assert after == infi.asi_utils.hexlify_block_addresses(before)
