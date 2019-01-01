@@ -54,12 +54,12 @@ def exception_handler(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except AsiCheckConditionError, error:
+        except AsiCheckConditionError as error:
             ActiveOutputContext.output_error(error.sense_obj, file=sys.stderr)
-        except (ValueError, NotImplementedError), error:
+        except (ValueError, NotImplementedError) as error:
             print(error, file=sys.stderr)
             raise SystemExit(1)
-        except (AsiOSError, AsiSCSIError), error:
+        except (AsiOSError, AsiSCSIError) as error:
             print(error, file=sys.stderr)
             raise SystemExit(1)
     return wrapper
@@ -166,7 +166,7 @@ def pr_readreservation(device):
 def turs(device, number):
     from infi.asi.cdb.tur import TestUnitReadyCommand
     with asi_context(device) as asi:
-        for i in xrange(int(number)):
+        for i in range(int(number)):
             command = TestUnitReadyCommand()
             sync_wait(asi, command)
 
