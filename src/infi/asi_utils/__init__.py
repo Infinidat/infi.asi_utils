@@ -124,7 +124,7 @@ def asi_context(device):
     with _func(device) as executer:
         yield executer
 
-def sync_wait(asi, command, supresss_output=False, additional_data=dict):
+def sync_wait(asi, command, supresss_output=False, additional_data=dict()):
     from infi.asi.coroutines.sync_adapter import sync_wait as _sync_wait
     ActiveOutputContext.output_command(command)
     result = _sync_wait(command.execute(asi))
