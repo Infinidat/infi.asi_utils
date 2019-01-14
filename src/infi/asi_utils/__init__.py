@@ -128,7 +128,6 @@ def sync_wait(asi, command, supresss_output=False, additional_data=None):
     from infi.asi.coroutines.sync_adapter import sync_wait as _sync_wait
     ActiveOutputContext.output_command(command)
     result = _sync_wait(command.execute(asi))
-    additional_data = additional_data or {}
     if additional_data:
         for key, value in additional_data.items():
             setattr(result, key, value)
