@@ -11,9 +11,9 @@ class OutputFormatter(object):
 
     def _to_bytes(self, item):
         """ Utility method that converts the output to a byte sequence """
-        data = str(type(item).write_to_string(item)) if isinstance(item, Struct) else \
-               str(item.pack()) if isinstance(item, Buffer) else \
-               '' if item is None else str(item)
+        data = bytes(type(item).write_to_string(item)) if isinstance(item, Struct) else \
+               bytes(item.pack()) if isinstance(item, Buffer) else \
+               '' if item is None else bytes(item)
         return data
 
     def _to_dict(self, item):
@@ -48,7 +48,7 @@ class OutputFormatter(object):
 class RawOutputFormatter(OutputFormatter):
 
     def format(self, item):
-        return self._to_bytes(item)
+        return self._to_bytes(item).decode()
 
 
 class HexOutputFormatter(OutputFormatter):
