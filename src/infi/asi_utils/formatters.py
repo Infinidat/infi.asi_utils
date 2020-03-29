@@ -251,7 +251,7 @@ class InqOutputFormatter(DefaultOutputFormatter):
                 designator_type_string=SCSI_DESIGNATOR_TYPES[designator['designator_type']],
                 code_set_string=SCSI_CODE_SETS[designator['code_set']],
                 association_string=SCSI_DESIGNATOR_ASSOCIATIONS[designator['association']].lower(),
-                packed_string='0x' + hexlify(item.designators_list[designator_index].pack())[8:],
+                packed_string='0x' + hexlify(item.designators_list[designator_index].pack())[8:].decode(),
                 ieee_company_id=designator.get('ieee_company_id'),
                 vendor_specific_identifier=designator.get('vendor_specific_identifier'),
                 vendor_specific_identifier_extension=designator.get('vendor_specific_identifier_extension'),
